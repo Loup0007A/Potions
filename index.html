@@ -610,18 +610,90 @@ const GEN = [
   { min: 80, f: () => { const k = R(12, 25); const s = [...(2n ** BigInt(k)).toString()].reduce((x, c) => x + +c, 0); return Q(`Quelle est la somme des chiffres de 2<sup>${k}</sup> ?`, s); } },
   { min: 85, f: () => { const m = R(3, 7), n = R(3, 7); return Q(`Sur un quadrillage de ${m} × ${n} carreaux, combien de chemins mènent du coin inférieur gauche au coin supérieur droit en suivant les lignes, uniquement vers la droite ou vers le haut ?`, binom(m + n, m)); } },
   { min: 90, f: () => { const m = R(3, 8), n = R(3, 8); return Q(`Combien de rectangles de toutes tailles peut-on tracer en suivant les lignes d'une grille de ${m} × ${n} cases ?`, (m + 1) * m / 2 * (n + 1) * n / 2); } },
-  { min: 90, f: () => { const s = R(5, 20); let c = 0; for (let i = 1; i <= 999; i++) if ([...String(i)].reduce((x, y) => x + +y, 0) === s) c++; return Q(`Combien d'entiers de 1 à 999 ont une somme de chiffres égale à ${s} ?`, c); } }
+  { min: 90, f: () => { const s = R(5, 20); let c = 0; for (let i = 1; i <= 999; i++) if ([...String(i)].reduce((x, y) => x + +y, 0) === s) c++; return Q(`Combien d'entiers de 1 à 999 ont une somme de chiffres égale à ${s} ?`, c); } },
+  /* 60 énigmes fixes supplémentaires, en trois paliers */
+  { min: 1, max: 60, cap: 4, f: (d, fx, px) => px[0].pop() },
+  { min: 25, cap: 4, f: (d, fx, px) => px[1].pop() },
+  { min: 55, cap: 4, f: (d, fx, px) => px[2].pop() }
+];
+const ENIGMES_PLUS = [
+  [ // palier 1 : faciles
+    Q("Qu'est-ce qui a des dents mais ne mord jamais ?", "peigne"),
+    Q("Si on me partage, je n'existe plus. Qui suis-je ?", "secret"),
+    Q("Combien de fois écrit-on le chiffre 9 en écrivant tous les nombres de 1 à 100 ?", 20),
+    Q("Un avion s'écrase pile sur la frontière entre la France et l'Espagne. Dans quel pays enterre-t-on les survivants ?", "nulle part", "aucun", "aucun pays", "on ne les enterre pas", "on n'enterre pas les survivants"),
+    Q("Qu'est-ce qui monte et descend sans jamais bouger ?", "escalier", "escaliers"),
+    Q("Un médecin vous donne 3 comprimés et vous dit d'en prendre un toutes les demi-heures. Combien de minutes vont-ils durer ?", 60),
+    Q("Si 5 machines fabriquent 5 objets en 5 minutes, combien de minutes faut-il à 100 machines pour fabriquer 100 objets ?", 5),
+    Q("Combien d'animaux de chaque espèce Moïse a-t-il emmenés dans l'arche ?", 0, "aucun", "zero"),
+    Q("Quel mot est toujours mal écrit dans le dictionnaire ?", "mal"),
+    Q("Multipliez le nombre de côtés d'un hexagone par le nombre de faces d'un cube.", 36),
+    Q("Qu'est-ce qui est plein de trous mais retient quand même l'eau ?", "eponge"),
+    Q("Combien de minutes y a-t-il dans 3 heures et quart ?", 195),
+    Q("Je commence la nuit et je termine le matin. Qui suis-je ? (une lettre)", "n", "lettre n"),
+    Q("Qu'est-ce qui vous appartient mais que les autres utilisent plus que vous ?", "nom", "votre nom", "prenom", "votre prenom"),
+    Q("Un coq pond un œuf au sommet d'un toit pointu. De quel côté tombe l'œuf ?", "aucun", "aucun cote", "ni l'un ni l'autre", "un coq ne pond pas", "les coqs ne pondent pas"),
+    Q("Qu'est-ce qui a un cou mais pas de tête ?", "bouteille"),
+    Q("Je suis toujours devant vous, mais on ne peut jamais me voir. Qui suis-je ?", "avenir", "futur"),
+    Q("Un bus part avec 12 passagers. Au 1er arrêt, 4 descendent et 7 montent ; au 2e, 5 descendent ; au 3e, 2 montent. Combien de passagers reste-t-il ?", 12),
+    Q("Quelle est la somme de tous les points d'un dé à six faces ?", 21),
+    Q("Dans une famille, il y a 4 frères et chaque frère a une sœur. Combien y a-t-il d'enfants ?", 5)
+  ],
+  [ // palier 2 : moyennes
+    Q("Complétez la suite : 1, 11, 21, 1211, 111221, ?", 312211),
+    Q("Je suis un nombre à deux chiffres égal à trois fois la somme de mes chiffres. Qui suis-je ?", 27),
+    Q("J'ai deux fois l'âge que vous aviez quand j'avais l'âge que vous avez. Quand vous aurez mon âge, nous aurons 63 ans à nous deux. Quel âge ai-je ?", 28),
+    Q("Quel est le plus petit entier positif divisible par 7 qui, divisé par 2, 3, 4, 5 ou 6, laisse toujours un reste de 1 ?", 301),
+    Q("Une horloge sonne 6 coups en 5 secondes. Combien de secondes lui faut-il pour sonner 12 coups ?", 11),
+    Q("Combien de fois les aiguilles des heures et des minutes se superposent-elles en 24 heures ?", 22),
+    Q("Une brique pèse 1 kg plus une demi-brique. Combien de kilos pèse une brique ?", 2),
+    Q("Un homme a 20 pièces, uniquement de 2 € et de 5 €, pour un total de 70 €. Combien a-t-il de pièces de 5 € ?", 10),
+    Q("Pour numéroter les pages d'un livre à partir de 1, on a utilisé 1 095 chiffres. Combien de pages a ce livre ?", 401),
+    Q("Le produit des âges de trois enfants vaut 36. Connaître la somme de leurs âges ne suffit pas à les trouver, mais on sait qu'il y a un seul aîné. Quel âge a l'aîné ?", 9),
+    Q("Un nombre de 4 chiffres a pour 1er chiffre le nombre de 0 qu'il contient, pour 2e le nombre de 1, pour 3e le nombre de 2 et pour 4e le nombre de 3. Il en existe deux : donnez le plus petit.", 1210),
+    Q("Combien d'entiers de 1 à 1 000 sont à la fois des carrés et des cubes parfaits ?", 3),
+    Q("100 casiers fermés. Le 1er élève les ouvre tous, le 2e change l'état d'un casier sur deux, le 3e d'un sur trois… jusqu'au 100e. Combien de casiers restent ouverts ?", 10),
+    Q("Un train part de Paris vers Lyon (400 km) à 100 km/h. Au même moment, un autre part de Lyon vers Paris à 60 km/h. Au bout de combien de minutes se croisent-ils ?", 150),
+    Q("Quelle est la somme de tous les entiers de 1 à 100 ?", 5050),
+    Q("Deux pères et deux fils vont pêcher. Ils attrapent 3 poissons et chacun en a exactement un. Combien sont-ils ?", 3),
+    Q("Une bactérie se divise en deux chaque minute et remplit un bocal en 60 minutes. En partant de 2 bactéries, en combien de minutes le bocal est-il plein ?", 59),
+    Q("Dans 6 ans, j'aurai le double de l'âge que j'avais il y a 6 ans. Quel âge ai-je ?", 18),
+    Q("Combien de diagonales possède un décagone (polygone à 10 côtés) ?", 35),
+    Q("Un rectangle a un périmètre de 30 cm et une aire de 56 cm². Combien mesure son plus grand côté, en cm ?", 8)
+  ],
+  [ // palier 3 : difficiles
+    Q("Combien d'entiers de 1 à 1 000 ne contiennent aucun chiffre 1 ?", 728),
+    Q("Quel est le plus petit entier positif qui possède exactement 12 diviseurs ?", 60),
+    Q("De combien de façons peut-on monter un escalier de 10 marches en montant 1 ou 2 marches à la fois ?", 89),
+    Q("Combien y a-t-il de nombres premiers entre 1 et 100 ?", 25),
+    Q("Quelle est la somme de tous les chiffres écrits en notant les nombres de 1 à 99 ?", 900),
+    Q("Combien de triangles différents, à côtés entiers, ont un périmètre de 12 ?", 3),
+    Q("Quel est le plus petit nombre écrit uniquement avec des 1 qui soit divisible par 7 ?", 111111),
+    Q("Quel est le plus petit entier positif qui laisse un reste de 2 divisé par 3, de 3 divisé par 5 et de 2 divisé par 7 ?", 23),
+    Q("De combien de façons peut-on placer 8 tours sur un échiquier sans qu'aucune n'en menace une autre ?", 40320),
+    Q("Quel est le dernier chiffre non nul de 10! (factorielle de 10) ?", 8),
+    Q("Combien de chiffres a le nombre 2<sup>100</sup> ?", 31),
+    Q("Combien d'anagrammes du mot RADAR sont des palindromes ?", 2),
+    Q("En écrivant tous les nombres de 1 à 1 000, combien de fois écrit-on le chiffre 7 ?", 300),
+    Q("La somme de 5 entiers consécutifs vaut 2 025. Quel est le plus grand ?", 407),
+    Q("Combien de nombres de 3 chiffres ont des chiffres strictement croissants de gauche à droite ?", 84),
+    Q("Combien d'entiers de 1 à 100 n'ont aucun diviseur commun avec 100 autre que 1 ?", 40),
+    Q("Quel est le plus petit nombre à deux chiffres dont le carré se termine par ce même nombre ?", 25),
+    Q("Une ficelle fait le tour de la Terre à l'équateur. On l'allonge d'un mètre et on la soulève partout de la même hauteur. À combien de centimètres du sol est-elle (arrondi à l'entier) ?", 16),
+    Q("Combien de carrés parfaits divisent 2<sup>4</sup> × 3<sup>3</sup> × 5<sup>2</sup> ?", 12),
+    Q("De combien de façons peut-on faire 1 € avec des pièces de 10, 20 et 50 centimes ?", 10)
+  ]
 ];
 function genererQuestions(L) {
   const { n } = cfgEnigmes(L), d = L / 100;
   const dispo = GEN.filter(g => g.min <= L && (g.max ?? 999) >= L);
   const poids = g => 1 + g.min * L / 2000;
-  const usage = new Map(), qs = [], fx = shuffle([...FIXES]);
+  const usage = new Map(), qs = [], fx = shuffle([...FIXES]), px = ENIGMES_PLUS.map(t => shuffle([...t]));
   for (let garde = 0; qs.length < n && garde < 2000; garde++) {
     let r = Math.random() * dispo.reduce((s, g) => s + poids(g), 0);
     const g = dispo.find(x => (r -= poids(x)) < 0) || dispo[0];
-    const u = usage.get(g) || 0; if (u >= 2) continue;
-    const q = g.f(d, fx); if (!q) continue;
+    const u = usage.get(g) || 0; if (u >= (g.cap ?? 2)) continue;
+    const q = g.f(d, fx, px); if (!q || qs.some(x => x.q === q.q)) continue;
     usage.set(g, u + 1); qs.push(q);
   }
   return qs;
@@ -631,7 +703,8 @@ function norm(s) {
     .replace(/[.!?]+$/, "").replace(/\s+/g, " ").replace(/^(le |la |l'|les |un |une |mon |son |c'est |il s'agit de )/, "").trim();
 }
 function correct(rep, attendues) {
-  const r = norm(rep), num = /^-?\d+(\.\d+)?$/;
+  let r = norm(rep); const num = /^-?\d+(\.\d+)?$/;
+  if (num.test(r.replace(/ /g, ""))) r = r.replace(/ /g, "");
   return attendues.some(a => { const x = norm(a); return num.test(r) && num.test(x) ? Number(r) === Number(x) : r === x; });
 }
 const Enigmes = {
@@ -697,7 +770,29 @@ const FAMILLES = [
   { min: 70, max: 100, titre: "Montagnes", f: L => { const n = 8 + Math.floor(L / 8); return { code: `catalan_${n}`, enonce: `Un chemin part du point (0, 0) et arrive au point (${2 * n}, 0) en faisant uniquement des pas (+1, +1) ou (+1, −1). Combien de tels chemins ne passent jamais sous l'axe horizontal ?`, rep: binom(2 * n, n) / BigInt(n + 1) }; } },
   { min: 75, max: 100, titre: "Queue de puissance", f: L => { const N = R(1000, 9999) * (1 + Math.floor(L / 10)); return { code: `puissance7_${N}`, enonce: `Quels sont les quatre derniers chiffres de 7<sup>${N}</sup> ? Donnez-les comme un nombre : « 0343 » s'écrit 343.`, rep: modpow(7, N, 10000) }; } },
   { min: 80, max: 100, titre: "Diviseurs", f: L => { const n = 20 + Math.floor(L / 5); let r = 1n; for (let p = 2; p <= n; p++) if (estPremier(p)) { let e = 0; for (let q = p; q <= n; q *= p) e += Math.floor(n / q); r *= BigInt(e + 1); } return { code: `diviseurs_fact_${n}`, enonce: `Combien de diviseurs positifs possède ${n}! (factorielle de ${n}) ?`, rep: r }; } },
-  { min: 85, max: 100, titre: "Collier", f: () => { const n = R(10, 30), k = R(3, 6); const r = BigInt(k - 1) ** BigInt(n) + (n % 2 ? -1n : 1n) * BigInt(k - 1); return { code: `collier_${n}_${k}`, enonce: `Les ${n} perles d'un collier fermé occupent des positions numérotées. On les peint avec ${k} couleurs, deux perles voisines n'ayant jamais la même couleur. Combien de coloriages sont possibles ?`, rep: r }; } }
+  { min: 85, max: 100, titre: "Collier", f: () => { const n = R(10, 30), k = R(3, 6); const r = BigInt(k - 1) ** BigInt(n) + (n % 2 ? -1n : 1n) * BigInt(k - 1); return { code: `collier_${n}_${k}`, enonce: `Les ${n} perles d'un collier fermé occupent des positions numérotées. On les peint avec ${k} couleurs, deux perles voisines n'ayant jamais la même couleur. Combien de coloriages sont possibles ?`, rep: r }; } },
+  ...[ /* 20 problèmes ultra difficiles : un nouveau s'ajoute tous les 5 niveaux */
+    ["Pavage 4 × 6", "dominos_4x6", "De combien de façons peut-on paver entièrement un rectangle de 4 × 6 cases avec des dominos 1 × 2 ?", 281],
+    ["Sept dames", "dames_7", "De combien de façons peut-on placer 7 dames sur un échiquier de 7 × 7 sans qu'aucune n'en menace une autre (ni sur une ligne, ni sur une colonne, ni sur une diagonale) ?", 40],
+    ["Ni 3 ni 5", "somme_ni3ni5", "Quelle est la somme de tous les entiers de 1 à 1 000 qui ne sont divisibles ni par 3, ni par 5 ?", 266332],
+    ["Triangles de la grille", "triangles_grille5", "On dispose 25 points en carré, sur une grille de 5 × 5 points régulièrement espacés. Combien de triangles non aplatis ont leurs trois sommets parmi ces points ?", 2148],
+    ["Deux carrés", "deux_carres_5525", "De combien de façons peut-on écrire 5 525 sous la forme a² + b², avec a et b entiers strictement positifs et a ≤ b ?", 6],
+    ["Plus de 1", "binaire_2026", "Parmi les entiers de 1 à 2 026, combien s'écrivent en base 2 avec strictement plus de chiffres 1 que de chiffres 0 ?", 1178],
+    ["Sans voisins", "sans_consecutifs_15", "Combien de sous-ensembles de {1, 2, …, 15}, ensemble vide compris, ne contiennent jamais deux entiers consécutifs ?", 1597],
+    ["Mots sans bégaiement", "mots_abc_10", "Combien de mots de 10 lettres, écrits avec les lettres A, B et C, commencent et finissent par A et ne contiennent jamais deux lettres identiques côte à côte ?", 170],
+    ["Le grand facteur", "facteur_2p32", "Quel est le plus grand nombre premier qui divise 2<sup>32</sup> − 1 ?", 65537],
+    ["Cube peint", "cube_3couleurs", "On peint chacune des 6 faces d'un cube avec l'une de 3 couleurs (toutes ne sont pas forcément utilisées). Deux cubes qu'une rotation rend identiques comptent pour un. Combien de cubes différents obtient-on ?", 57],
+    ["Bracelets", "bracelets_6_2", "Un bracelet compte 6 perles, chacune noire ou blanche. Deux bracelets qui se correspondent par rotation ou par retournement comptent pour un. Combien de bracelets différents existe-t-il ?", 13],
+    ["Cordes", "regions_8points", "On place 8 points sur un cercle et on trace toutes les cordes qui les relient deux à deux, sans que trois cordes ne se coupent jamais en un même point intérieur. En combien de régions le disque est-il découpé ?", 99],
+    ["Rien d'oublié", "surjections_7_3", "De combien de façons peut-on distribuer 7 objets différents à 3 personnes de sorte que chacune en reçoive au moins un ?", 1806],
+    ["Bonbons", "bonbons_10_4", "De combien de façons peut-on répartir 10 bonbons identiques entre 4 enfants, si chaque enfant en reçoit au plus 4 (certains peuvent n'en recevoir aucun) ?", 68],
+    ["Une paire", "poker_une_paire", "Dans un jeu de 52 cartes, combien de mains de 5 cartes contiennent exactement une paire (et rien de mieux : ni deux paires, ni brelan, ni plus) ?", 1098240],
+    ["Puissance de 2", "fact_2p100", "Quel est le plus petit entier n tel que n! (factorielle de n) soit divisible par 2<sup>100</sup> ?", 104],
+    ["Dernier chiffre", "fact100_nonnul", "Quel est le dernier chiffre non nul de 100! (factorielle de 100) ?", 4],
+    ["Fractions égyptiennes", "egypt_12", "Combien de couples ordonnés (x, y) d'entiers strictement positifs vérifient 1/x + 1/y = 1/12 ?", 15],
+    ["Crible", "crible_2357", "Combien d'entiers de 1 à 10 000 sont divisibles par au moins un des nombres 2, 3, 5 ou 7 ?", 7715],
+    ["Marche du roi", "roi_a1_h4_7", "Sur un échiquier, un roi part de la case a1 et doit atteindre la case h4 en exactement 7 coups. Combien de trajets différents sont possibles ?", 133]
+  ].map(([titre, code, enonce, rep], i) => ({ min: 5 * (i + 1), max: 100, titre, f: () => ({ code, enonce, rep: BigInt(rep) }) }))
 ];
 const cfgProbleme = L => ({ essais: L >= 80 ? 2 : 3, familles: FAMILLES.filter(f => f.min <= L && f.max >= L) });
 const Probleme = {
