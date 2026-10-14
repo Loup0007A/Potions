@@ -143,6 +143,10 @@ details.carnet ul{padding-left:18px;margin-top:10px;display:grid;gap:6px;font-si
 .journal{list-style:none;margin-top:14px;max-height:240px;overflow:auto;font-size:13px;color:var(--doux)}
 .journal li{padding:7px 0;border-top:1px solid var(--trait)}
 .journal b{color:var(--texte)}
+.ing b .nb{font-style:normal;color:var(--acc)}
+.arrachee{color:var(--pale);font-style:italic}
+.indice{font-size:13px;color:var(--soufre);margin-top:4px}
+.indice:empty{display:none}
 
 /* Énigmes / problème */
 .scene{max-width:740px;margin:0 auto}
@@ -381,89 +385,141 @@ const ING = [
   { id: "nh3", f: "NH₃", n: "Ammoniac" },
   { id: "cafeine", f: "C₈H₁₀N₄O₂", n: "Caféine" },
   { id: "o2", f: "O₂", n: "Dioxygène" },
+  { id: "cu", f: "CuSO₄", n: "Sulfate de cuivre", niv: 12 },
+  { id: "h2o2", f: "H₂O₂", n: "Eau oxygénée", niv: 22 },
+  { id: "fe", f: "Fe", n: "Limaille de fer", niv: 32 },
   { id: "mi", f: "Mi", n: "Molécule instable", inst: true },
   { id: "nu", f: "Nu", n: "Molécule instable", inst: true }
 ];
+const ACT_MAX = 10;
+const ACIDES = ["vinaigre", "citrique"];
+/* Moteur chimique : l'ordre des gestes et le nombre de doses comptent */
+function simuler(seq) {
+  const d = {}; ING.forEach(x => d[x.id] = 0);
+  let eff = false, rouille = false, caramel = false;
+  const acide = () => d.vinaigre + d.citrique;
+  for (const a of seq) {
+    if (a === "feu") {
+      d.ethanol = 0;
+      d.o2 += d.h2o2; d.h2o2 = 0;
+      if (d.sucre >= 2) caramel = true;
+      eff = false;
+      continue;
+    }
+    d[a]++;
+    if ((ACIDES.includes(a) && d.bicar) || (a === "bicar" && acide())) eff = true;
+    if ((a === "h2o2" && d.fe) || (a === "fe" && d.h2o2)) rouille = true;
+  }
+  if (!d.h2o) return null;
+  const t = [], base = d.bicar + d.nh3, pH = acide() - base;
+  t.push(pH > 0 ? "acide" : pH < 0 ? "basique" : "neutre");
+  if (Math.abs(pH) >= 3) t.push("corrosive");
+  if (d.h2o >= 3) t.push("diluée");
+  else {
+    if (d.nacl || (acide() && base)) t.push("salée");
+    if (caramel) t.push("caramélisée"); else if (d.sucre) t.push("sucrée");
+  }
+  if (eff) t.push("effervescente");
+  if (d.nh3 > acide() || d.cu >= 2) t.push("toxique");
+  if (d.ethanol && !eff) t.push(d.o2 ? "ardente" : "inflammable");
+  if (d.cafeine >= 3) t.push("électrisante"); else if (d.cafeine) t.push("stimulante");
+  if (d.cu) t.push(d.nh3 >= 2 ? "azur" : "bleue");
+  if (rouille) t.push("rouillée"); else if (d.fe) t.push("magnétique");
+  if (d.mi && d.nu) t.push("quantique");
+  else { if (d.mi) t.push(d.mi >= 2 ? "aveuglante" : "lumineuse"); if (d.nu) t.push(d.nu >= 2 ? "volante" : "flottante"); }
+  return t;
+}
+const INTERACTIONS = ["corrosive", "diluée", "caramélisée", "effervescente", "ardente", "électrisante", "azur", "rouillée", "quantique", "aveuglante", "volante"];
 const REGLES = [
-  "Toute potion exige de l'eau (H₂O). Sans eau, ce n'est qu'une poudre inerte.",
-  "Au plus 5 ingrédients différents par mélange, eau comprise.",
-  "Acides : CH₃COOH et C₆H₈O₇. Bases : NaHCO₃ et NH₃.",
-  "Un acide sans base rend la potion acide ; une base sans acide la rend basique ; sinon elle est neutre.",
-  "Quand un acide rencontre une base, ils se neutralisent en un sel dissous : la potion devient salée, même sans NaCl.",
-  "Le bicarbonate au contact d'un acide libère du CO₂ : la potion devient effervescente.",
-  "L'ammoniac qui n'est pas neutralisé par un acide dégage des vapeurs toxiques.",
-  "L'éthanol rend la potion inflammable, sauf si elle est effervescente : le CO₂ étouffe la flamme.",
-  "Une potion inflammable enrichie en O₂ devient ardente (et n'est plus simplement inflammable).",
-  "Le saccharose rend la potion sucrée ; la caféine la rend stimulante.",
-  "Mi rend la potion lumineuse ; Nu la rend flottante. Réunies, elles fusionnent : la potion devient quantique, ni lumineuse ni flottante.",
-  "Chaque molécule Mi ou Nu versée a 1 % de chance de faire exploser le chaudron. L'expérience s'arrête alors aussitôt.",
-  "Une potion n'est reconnue que si ses propriétés correspondent exactement à celles du grimoire."
+  { fixe: 1, t: "Toute potion exige au moins une dose d'eau (H₂O). Sans eau, ce n'est qu'une poudre inerte." },
+  { fixe: 1, t: `Un mélange compte au plus ${ACT_MAX} gestes. Chaque clic sur une molécule verse une dose ; l'ordre des gestes compte.` },
+  { fixe: 1, t: "Chaque dose de Mi ou de Nu versée a 1 % de chance de faire exploser le chaudron. L'expérience s'arrête alors aussitôt." },
+  { fixe: 1, t: "Une potion n'est reconnue que si ses propriétés correspondent exactement à celles du grimoire, ni plus, ni moins." },
+  { t: "Acides : CH₃COOH et C₆H₈O₇. Bases : NaHCO₃ et NH₃. Plus de doses d'acide que de base : la potion est acide ; moins : basique ; autant : neutre." },
+  { t: "Un écart de 3 doses ou plus entre acides et bases rend en plus la potion corrosive." },
+  { t: "Dès qu'un acide et une base se côtoient, ils forment un sel : la potion est salée, comme avec NaCl." },
+  { t: "Le sucre rend la potion sucrée.", req: [] },
+  { t: "Chauffer une potion contenant au moins 2 doses de sucre la rend caramélisée pour de bon : elle n'est plus sucrée.", req: ["feu"] },
+  { t: "Trois doses d'eau ou plus la rendent diluée : elle perd alors tous ses goûts (salée, sucrée, caramélisée)." },
+  { t: "Quand un acide rencontre du bicarbonate déjà versé, ou l'inverse, la potion devient effervescente." },
+  { t: "Chauffer fait s'échapper toutes les bulles. Une nouvelle rencontre acide-bicarbonate après la chauffe les fait revenir.", req: ["feu"] },
+  { t: "L'ammoniac rend la potion toxique s'il y en a plus de doses que d'acide." },
+  { t: "Deux doses de sulfate de cuivre rendent aussi la potion toxique.", req: ["cu"] },
+  { t: "L'éthanol rend la potion inflammable, sauf si elle est effervescente. Avec du dioxygène, elle est ardente au lieu d'inflammable." },
+  { t: "Chauffer fait s'évaporer tout l'éthanol déjà versé.", req: ["feu"] },
+  { t: "Chauffer décompose l'eau oxygénée déjà versée en autant de doses de dioxygène.", req: ["feu", "h2o2"] },
+  { t: "Une ou deux doses de caféine rendent la potion stimulante ; trois doses ou plus, électrisante." },
+  { t: "Le sulfate de cuivre rend la potion bleue ; avec au moins 2 doses d'ammoniac, elle est azur au lieu de bleue.", req: ["cu"] },
+  { t: "Le fer rend la potion magnétique. S'il rencontre de l'eau oxygénée, dans un sens ou dans l'autre, il rouille : la potion est rouillée au lieu de magnétique.", req: ["fe"] },
+  { t: "Mi rend la potion lumineuse, aveuglante à 2 doses. Nu la rend flottante, volante à 2 doses. Ensemble, elles fusionnent : la potion devient quantique, sans aucun de ces autres effets." }
 ];
-const REGLES_MIN = [REGLES[0], REGLES[1], REGLES[11], REGLES[12], "Les autres lois de ce laboratoire sont à découvrir par l'expérience."];
 const PHRASES = {
   acide: "mord la langue", basique: "glisse entre les doigts comme un savon", neutre: "n'a aucun penchant",
-  "salée": "a le goût de la mer", "sucrée": "est douce comme le miel", effervescente: "danse en bulles",
-  toxique: "empoisonne l'air", inflammable: "craint la flamme", ardente: "s'embrase en brasier",
-  stimulante: "chasse le sommeil", lumineuse: "brille dans le noir", flottante: "défie la pesanteur", quantique: "unit deux étrangers"
+  corrosive: "ronge le verre", "diluée": "n'a plus aucun goût", "salée": "a le goût de la mer", "sucrée": "est douce comme le miel",
+  "caramélisée": "sent le sucre brûlé", effervescente: "danse en bulles", toxique: "empoisonne l'air",
+  inflammable: "craint la flamme", ardente: "s'embrase en brasier", stimulante: "chasse le sommeil",
+  "électrisante": "fait dresser les cheveux", bleue: "a la couleur du ciel", azur: "a le bleu profond des abysses",
+  "magnétique": "attire les clous", "rouillée": "a la couleur de l'automne", lumineuse: "brille dans le noir",
+  aveuglante: "brûle les yeux de lumière", flottante: "défie la pesanteur", volante: "s'envole d'elle-même", quantique: "unit deux étrangers"
 };
 const NOMS_A = ["Élixir", "Philtre", "Baume", "Teinture", "Essence", "Onguent", "Larme", "Sève", "Souffle", "Nectar", "Liqueur", "Brume"];
 const NOMS_B = ["de l'aube", "du dragon", "des marées", "d'obsidienne", "du veilleur", "des fous", "de cendre", "d'argent", "du nord", "des abysses", "de minuit", "du héron", "des sables", "de l'orage", "du lierre", "des comètes"];
-
-function analyser(set) {
-  if (!set.has("h2o")) return null;
-  const acide = set.has("vinaigre") || set.has("citrique");
-  const base = set.has("bicar") || set.has("nh3");
-  const t = [acide && !base ? "acide" : base && !acide ? "basique" : "neutre"];
-  if (set.has("nacl") || (acide && base)) t.push("salée");
-  if (set.has("sucre")) t.push("sucrée");
-  const eff = set.has("bicar") && acide;
-  if (eff) t.push("effervescente");
-  if (set.has("nh3") && !acide) t.push("toxique");
-  if (set.has("ethanol") && !eff) t.push(set.has("o2") ? "ardente" : "inflammable");
-  if (set.has("cafeine")) t.push("stimulante");
-  if (set.has("mi") && set.has("nu")) t.push("quantique");
-  else { if (set.has("mi")) t.push("lumineuse"); if (set.has("nu")) t.push("flottante"); }
-  return t;
-}
 const memeEnsemble = (a, b) => a.length === b.length && a.every(x => b.includes(x));
 
 function cfgPotions(L) {
-  const nCibles = Math.min(9, 1 + Math.floor((L - 1) / 11));
+  const nCibles = Math.min(10, 2 + Math.floor(L / 11));
   return {
     nCibles,
-    minK: 2 + Math.floor(L / 34), maxK: Math.min(5, 3 + Math.floor(L / 25)),
-    minTags: L > 75 ? 4 : L > 40 ? 3 : 2,
-    pInst: L < 10 ? 0 : Math.min(0.65, L / 140),
-    poetique: L > 15, lexique: L <= 55, carnetComplet: L <= 80,
-    cachees: L >= 90 ? 2 : L >= 66 ? 1 : 0,
-    essaisMax: L <= 30 ? Infinity : Math.max(3, Math.round(8 - (L - 30) / 14)) * nCibles
+    actMin: Math.min(8, 3 + Math.floor(L / 14)), actMax: Math.min(ACT_MAX, 4 + Math.floor(L / 10)),
+    doses: L >= 4, feu: L >= 8, pFeu: L < 8 ? 0 : Math.min(0.75, 0.2 + L / 140),
+    minTags: L > 70 ? 5 : L > 35 ? 4 : 3,
+    minInter: L > 75 ? 3 : L > 40 ? 2 : L > 12 ? 1 : 0,
+    pInst: L < 6 ? 0 : Math.min(0.6, L / 150),
+    poetique: L > 10, lexique: L <= 50,
+    cacheRegles: L <= 25 ? 0 : L <= 60 ? 0.35 : 0.6,
+    cachees: L >= 85 ? 2 : L >= 55 ? 1 : 0,
+    brouillard: L >= 81,
+    essaisMax: L <= 5 ? Infinity : Math.max(4, Math.round(12 - (L - 5) / 11.5)) * nCibles
   };
 }
-function genererCibles(c) {
-  const NORMAUX = ING.map(x => x.id).filter(id => !["h2o", "mi", "nu"].includes(id));
+const ingDispo = L => ING.filter(x => !x.niv || x.niv <= L);
+function genererCibles(c, L) {
+  const pool = ingDispo(L).filter(x => !x.inst).map(x => x.id);
   const cibles = [], vus = new Set(), noms = new Set();
-  for (let garde = 0; cibles.length < c.nCibles && garde < 8000; garde++) {
-    const k = R(c.minK, c.maxK), set = new Set(["h2o"]);
-    if (Math.random() < c.pInst) { const r = Math.random(); if (r < 0.4) set.add("mi"); else if (r < 0.8) set.add("nu"); else { set.add("mi"); set.add("nu"); } }
-    const pool = shuffle([...NORMAUX]);
-    while (set.size < k && pool.length) set.add(pool.pop());
-    if (set.size > 5) continue;
-    const tags = analyser(set), cle = [...tags].sort().join("|");
-    if (tags.length < c.minTags || vus.has(cle)) continue;
+  for (let garde = 0; cibles.length < c.nCibles && garde < 20000; garde++) {
+    const k = R(c.actMin, c.actMax), seq = ["h2o"];
+    const inst = Math.random() < c.pInst ? ["mi", "nu", "mi+nu"][R(0, 2)] : "";
+    if (inst) for (const m of inst.split("+")) seq.splice(R(0, seq.length), 0, m);
+    if (Math.random() < c.pFeu) seq.splice(R(1, seq.length), 0, "feu");
+    while (seq.length < k) {
+      const a = pool[R(0, pool.length - 1)];
+      if (!c.doses && seq.includes(a)) continue;
+      seq.splice(R(0, seq.length), 0, a);
+    }
+    if (seq[0] === "feu") continue;
+    const tags = simuler(seq);
+    if (!tags) continue;
+    const cle = [...tags].sort().join("|");
+    if (tags.length < c.minTags || tags.filter(t => INTERACTIONS.includes(t)).length < c.minInter || vus.has(cle)) continue;
     let nom; do nom = NOMS_A[R(0, NOMS_A.length - 1)] + " " + NOMS_B[R(0, NOMS_B.length - 1)]; while (noms.has(nom));
     noms.add(nom); vus.add(cle);
-    const nbC = Math.min(c.cachees, tags.length - 2);
-    const caches = shuffle([...tags]).slice(0, Math.max(0, nbC));
+    const caches = shuffle([...tags]).slice(0, Math.max(0, Math.min(c.cachees, tags.length - 3)));
     cibles.push({ nom, tags, caches, enigme: enigmePotion(tags, c.poetique, caches) });
   }
   return cibles;
 }
 function enigmePotion(tags, poetique, caches) {
   const vis = shuffle(tags.filter(t => !caches.includes(t)));
-  const sec = caches.length > 1 ? " Deux de ses propriétés restent secrètes." : caches.length ? " Une de ses propriétés reste secrète." : "";
+  const sec = caches.length > 1 ? ` Deux de ses propriétés restent secrètes.` : caches.length ? " Une de ses propriétés reste secrète." : "";
   if (!poetique) return "Propriétés : " + vis.join(", ") + "." + sec;
   const ph = vis.map(t => PHRASES[t]);
   return "Elle " + (ph.length > 1 ? ph.slice(0, -1).join(", ") + " et " + ph[ph.length - 1] : ph[0]) + "." + sec;
+}
+const fIng = id => id === "feu" ? "🔥" : ING.find(x => x.id === id).f;
+function formule(seq) {
+  const g = [];
+  for (const a of seq) { const l = g[g.length - 1]; if (l && l.a === a) l.n++; else g.push({ a, n: 1 }); }
+  return g.map(x => fIng(x.a) + (x.n > 1 ? ` ×${x.n}` : "")).join("  →  ");
 }
 
 const Potions = {
@@ -471,33 +527,43 @@ const Potions = {
     const c = cfgPotions(L);
     return [
       pl(c.nCibles, "potion") + " à créer",
-      `Recettes de ${c.minK} à ${c.maxK} molécules, eau comprise`,
-      c.essaisMax === Infinity ? "Essais illimités" : `${c.essaisMax} essais au maximum`,
+      `Recettes de ${c.actMin} à ${c.actMax} gestes${c.feu ? ", chauffe comprise" : ""}`,
+      c.doses ? "L'ordre des gestes et le nombre de doses comptent" : "Une seule dose par molécule",
+      `${ingDispo(L).length} molécules sur la paillasse`,
+      c.essaisMax === Infinity ? "Essais illimités" : `${c.essaisMax} essais au total`,
       c.pInst ? `Mi ou Nu nécessaires dans environ ${Math.round(c.pInst * 100)} % des recettes` : "Mi et Nu jamais nécessaires",
       !c.poetique ? "Propriétés écrites en clair" : c.lexique ? "Propriétés décrites en énigmes, lexique fourni" : "Propriétés décrites en énigmes, sans lexique",
-      c.carnetComplet ? "Carnet de laboratoire complet" : "Lois de la chimie à découvrir par l'expérience",
-      c.cachees ? `Jusqu'à ${pl(c.cachees, "propriété cachée", "propriétés cachées")} par potion` : null
+      c.cacheRegles ? `Environ ${Math.round(c.cacheRegles * 100)} % des pages du carnet arrachées` : "Carnet de laboratoire complet",
+      c.cachees ? `Jusqu'à ${pl(c.cachees, "propriété cachée", "propriétés cachées")} par potion` : null,
+      c.brouillard ? "Brouillard : les propriétés de vos mélanges ne s'affichent plus" : null
     ].filter(Boolean);
   },
   start(root, L) {
-    const c = cfgPotions(L), cibles = genererCibles(c);
-    const st = S.mod = { sel: new Set(), faites: new Set(), essais: 0 };
-    const regles = c.carnetComplet ? REGLES : REGLES_MIN;
+    const c = cfgPotions(L), cibles = genererCibles(c, L), dispo = ingDispo(L);
+    const st = S.mod = { seq: [], faites: new Set(), essais: 0 };
     const max = c.essaisMax;
+    const regles = REGLES.filter(r => !r.req || r.req.every(q => q === "feu" ? c.feu : dispo.some(x => x.id === q)));
+    const variables = regles.filter(r => !r.fixe);
+    const arrachees = new Set(shuffle([...variables]).slice(0, Math.round(variables.length * c.cacheRegles)));
     root.innerHTML = `
     <div class="labo">
       <section class="bloc">
         <h2>Grimoire du niveau ${L}</h2>
-        <ol class="cibles" id="cibles">${cibles.map((p, i) => `<li data-i="${i}"><div class="cn"><span>${p.nom}</span><small>${pl(p.tags.length, "propriété")}</small></div><div class="cr">${p.enigme}</div></li>`).join("")}</ol>
-        <details class="carnet" open><summary>Carnet de laboratoire</summary><ul>${regles.map(r => `<li>${r}</li>`).join("")}</ul></details>
+        <ol class="cibles" id="cibles">${cibles.map((p, i) => `<li data-i="${i}"><div class="cn"><span>${p.nom}</span><small>${pl(p.tags.length, "propriété")}</small></div><div class="cr">${p.enigme}</div><div class="indice"></div></li>`).join("")}</ol>
+        <details class="carnet" open><summary>Carnet de laboratoire</summary><ul>${regles.map(r => arrachees.has(r) ? `<li class="arrachee">Page arrachée.</li>` : `<li>${r.t}</li>`).join("")}</ul></details>
         ${c.poetique && c.lexique ? `<details class="carnet"><summary>Lexique des alchimistes</summary><ul>${Object.entries(PHRASES).map(([t, p]) => `<li>${p} : ${t}</li>`).join("")}</ul></details>` : ""}
       </section>
       <section class="bloc">
         <h2>Paillasse</h2>
-        <div class="ings">${ING.map(x => `<button class="ing ${x.inst ? "inst" : ""}" data-id="${x.id}"><b>${x.f}</b><span>${x.n}</span></button>`).join("")}</div>
+        <div class="ings">${dispo.map(x => `<button class="ing ${x.inst ? "inst" : ""}" data-id="${x.id}"><b>${x.f}<i class="nb"></i></b><span>${x.n}</span></button>`).join("")}</div>
         <div class="chaudron">
-          <div class="cz vide" id="cz">Le chaudron est vide. Choisissez jusqu'à 5 molécules.</div>
-          <div class="actions" style="margin-top:0"><button class="btn" id="verser">Verser et mélanger</button><button class="btn second" id="vider">Vider</button></div>
+          <div class="cz vide" id="cz"></div>
+          <div class="actions" style="margin-top:0">
+            <button class="btn" id="verser">Verser et mélanger</button>
+            ${c.feu ? `<button class="btn second" id="feu">Chauffer</button>` : ""}
+            <button class="btn second" id="annuler">Annuler le dernier geste</button>
+            <button class="btn second" id="vider">Vider</button>
+          </div>
         </div>
         <div id="res" class="res" aria-live="polite"></div>
         <div class="stats"><span id="pst">0 / ${cibles.length} potions</span><span id="ess">${max === Infinity ? "0 essai" : `0 / ${max} essais`}</span><button class="btn second petit" id="fin">Arrêter l'épreuve</button></div>
@@ -508,45 +574,60 @@ const Potions = {
     const details = () => `potions=${st.faites.size}/${cibles.length};essais=${st.essais}`;
     Potions.expire = () => terminer({ statut: "temps_ecoule", score: score(), details: details() });
     const majCz = () => {
-      const cz = $("#cz");
-      cz.classList.toggle("vide", !st.sel.size);
-      cz.textContent = st.sel.size ? [...st.sel].map(id => ING.find(x => x.id === id).f).join("  +  ") : "Le chaudron est vide. Choisissez jusqu'à 5 molécules.";
-      root.querySelectorAll(".ing").forEach(b => { const on = st.sel.has(b.dataset.id); b.classList.toggle("on", on); b.disabled = !on && st.sel.size >= 5; });
+      const cz = $("#cz"), plein = st.seq.length >= ACT_MAX;
+      cz.classList.toggle("vide", !st.seq.length);
+      cz.textContent = st.seq.length ? `${formule(st.seq)}   (${st.seq.length}/${ACT_MAX})` : `Le chaudron est vide. Jusqu'à ${ACT_MAX} gestes par mélange.`;
+      root.querySelectorAll(".ing").forEach(b => {
+        const n = st.seq.filter(a => a === b.dataset.id).length;
+        b.classList.toggle("on", n > 0);
+        b.querySelector(".nb").textContent = n > 1 ? ` ×${n}` : "";
+        b.disabled = plein || (!c.doses && n > 0);
+      });
+      if ($("#feu")) $("#feu").disabled = plein || !st.seq.length || st.seq[st.seq.length - 1] === "feu";
     };
-    root.querySelectorAll(".ing").forEach(b => b.onclick = () => { const id = b.dataset.id; st.sel.has(id) ? st.sel.delete(id) : st.sel.size < 5 && st.sel.add(id); majCz(); });
-    $("#vider").onclick = () => { st.sel.clear(); majCz(); };
+    root.querySelectorAll(".ing").forEach(b => b.onclick = () => { if (st.seq.length < ACT_MAX) st.seq.push(b.dataset.id); majCz(); });
+    if ($("#feu")) $("#feu").onclick = () => { if (st.seq.length < ACT_MAX) st.seq.push("feu"); majCz(); };
+    $("#annuler").onclick = () => { st.seq.pop(); majCz(); };
+    $("#vider").onclick = () => { st.seq = []; majCz(); };
     $("#fin").onclick = () => terminer({ statut: "echoue", score: score(), details: details(), raison: "abandon_volontaire" });
     $("#verser").onclick = () => {
-      if (!st.sel.size || S.fini) return;
+      if (!st.seq.length || S.fini) return;
       st.essais++;
-      const formule = [...st.sel].map(id => ING.find(x => x.id === id).f).join(" + ");
-      const nbInst = [...st.sel].filter(id => id === "mi" || id === "nu").length;
+      const f = formule(st.seq);
+      const nbInst = st.seq.filter(a => a === "mi" || a === "nu").length;
       for (let k = 0; k < nbInst; k++) if (Math.random() < 0.01) {
         document.body.insertAdjacentHTML("beforeend", '<div class="boom"></div>');
         setTimeout(() => document.querySelector(".boom")?.remove(), 1000);
         return terminer({ statut: "explosion", score: score(), details: details(), raison: "explosion_Mi_Nu" });
       }
-      const tags = analyser(st.sel);
-      let html;
-      if (!tags) html = `<span class="mal">Sans eau, le mélange reste une poudre inerte.</span>`;
+      const tags = simuler(st.seq);
+      let html, resume;
+      if (!tags) { html = `<span class="mal">Sans eau, le mélange reste une poudre inerte.</span>`; resume = "poudre"; }
       else {
         const i = cibles.findIndex((p, j) => !st.faites.has(j) && memeEnsemble(p.tags, tags));
-        html = tags.map(t => `<span class="ptag">${t}</span>`).join("");
+        resume = c.brouillard ? pl(tags.length, "propriété") : tags.join(", ");
+        html = c.brouillard ? `<div class="rien">Le mélange présente ${pl(tags.length, "propriété")}. Le brouillard cache lesquelles.</div>` : tags.map(t => `<span class="ptag">${t}</span>`).join("");
         if (i >= 0) {
           st.faites.add(i);
           const li = $(`#cibles li[data-i="${i}"]`); li.classList.add("ok");
-          if (cibles[i].caches.length) li.insertAdjacentHTML("beforeend", `<div class="revele">Propriétés : ${cibles[i].tags.join(", ")}</div>`);
+          li.querySelector(".indice").textContent = "";
+          if (cibles[i].caches.length || c.brouillard) li.insertAdjacentHTML("beforeend", `<div class="revele">Propriétés : ${cibles[i].tags.join(", ")}</div>`);
           html = `<div class="bon">${cibles[i].nom} obtenue.</div>` + html;
-        } else html = `<div class="rien">Aucune potion du grimoire ne correspond.</div>` + html;
+        } else html = (c.brouillard ? "" : `<div class="rien">Aucune potion du grimoire ne correspond.</div>`) + html;
+        if (c.brouillard) cibles.forEach((p, j) => {
+          if (st.faites.has(j)) return;
+          const commun = p.tags.filter(t => tags.includes(t)).length;
+          $(`#cibles li[data-i="${j}"] .indice`).textContent = `Dernier mélange : ${commun} / ${p.tags.length} propriétés en commun`;
+        });
       }
       $("#res").innerHTML = html;
-      $("#journal").insertAdjacentHTML("afterbegin", `<li><b>${st.essais}.</b> ${formule} → ${tags ? tags.join(", ") : "poudre"}</li>`);
+      $("#journal").insertAdjacentHTML("afterbegin", `<li><b>${st.essais}.</b> ${f} → ${resume}</li>`);
       $("#pst").textContent = `${st.faites.size} / ${cibles.length} potions`;
       $("#ess").textContent = max === Infinity ? pl(st.essais, "essai") : `${st.essais} / ${max} essais`;
-      st.sel.clear(); majCz();
       if (st.faites.size === cibles.length) return setTimeout(() => terminer({ statut: "reussi", score: 100, details: details() }), 900);
       if (st.essais >= max) setTimeout(() => terminer({ statut: "echoue", score: score(), details: details(), raison: "essais_epuises" }), 900);
     };
+    majCz();
   },
   expire() {}
 };
@@ -572,6 +653,60 @@ const FIXES = [
 ];
 const MOTS = ["BANANE", "ANANAS", "PAPAYE", "TOMATE", "CARAMEL", "COCOTTE", "PARALLELE", "MISSISSIPPI", "ABRACADABRA", "CHOCOLAT", "ELEVE", "RESSASSER"];
 const suite = (s, rep) => Q(`Complétez la suite : ${s.join(", ")}, ?`, rep);
+/* outils pour les énigmes variées */
+const pick = a => a[R(0, a.length - 1)];
+const pad2 = n => String(n).padStart(2, "0");
+const LETTRE = i => String.fromCharCode(65 + i);
+const ROMAIN = n => { let s = ""; for (const [k, r] of [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]]) while (n >= k) { s += r; n -= k; } return s; };
+const MOTS_SIMPLES = ["MAISON", "JARDIN", "SOLEIL", "FROMAGE", "CHEVAL", "MONTAGNE", "RIVIERE", "CRAYON", "GIRAFE", "PLANETE", "VOITURE", "FENETRE", "BALEINE", "CITRON", "TONNERRE", "BOUGIE", "LAPIN", "ORANGE", "POMPIER", "TIGRE", "BATEAU", "NUAGE", "TORTUE", "CHATEAU"];
+const MOTS_LONGS = ["ANTICONSTITUTIONNELLEMENT", "MISSISSIPPI", "ABRACADABRA", "PARALLELEPIPEDE", "KALEIDOSCOPE", "HIPPOPOTAME", "CHRYSANTHEME", "ONOMATOPEE", "DESOXYRIBONUCLEIQUE", "PSYCHANALYSE", "ORNITHORYNQUE", "XYLOPHONE"];
+const PRENOMS = ["Alice", "Bruno", "Chloé", "David", "Emma", "Farid", "Gaëlle", "Hugo"];
+const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const JOURS_MOIS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+function repHeure(total) {
+  total = ((total % 1440) + 1440) % 1440;
+  const h = Math.floor(total / 60), m = pad2(total % 60), r = [`${pad2(h)}:${m}`, `${h}:${m}`, `${pad2(h)}h${m}`, `${h}h${m}`, `${h} h ${m}`, `${pad2(h)} h ${m}`];
+  if (m === "00") r.push(`${h}h`, `${h} h`);
+  return r;
+}
+function menteurs() {
+  const noms = shuffle([...PRENOMS]).slice(0, 3);
+  for (let essai = 0; essai < 400; essai++) {
+    const dits = [0, 1, 2].map(i => {
+      const autres = [0, 1, 2].filter(j => j !== i), r = Math.random(), x = pick(autres);
+      if (r < 0.4) return { t: `« ${noms[x]} ment. »`, v: T => !T[x] };
+      if (r < 0.65) return { t: `« ${noms[x]} dit la vérité. »`, v: T => T[x] };
+      if (r < 0.85) return { t: `« ${noms[autres[0]]} et ${noms[autres[1]]} mentent tous les deux. »`, v: T => !T[autres[0]] && !T[autres[1]] };
+      return { t: "« Un seul d'entre nous dit la vérité. »", v: T => T.filter(Boolean).length === 1 };
+    });
+    const ok = [];
+    for (let m = 0; m < 8; m++) { const T = [0, 1, 2].map(i => !!(m >> i & 1)); if (dits.every((s, i) => s.v(T) === T[i])) ok.push(T); }
+    if (ok.length !== 1) continue;
+    const T = ok[0], nv = T.filter(Boolean).length;
+    const intro = `${noms[0]}, ${noms[1]} et ${noms[2]} disent chacun toujours la vérité, ou mentent toujours. ` + dits.map((s, i) => `${noms[i]} : ${s.t}`).join(" ");
+    if (nv === 1) return Q(intro + " Qui dit la vérité ?", noms[T.indexOf(true)]);
+    if (nv === 2) return Q(intro + " Qui ment ?", noms[T.indexOf(false)]);
+    return Q(intro + " Combien d'entre eux disent la vérité ?", nv);
+  }
+  return null;
+}
+function permutations(n) {
+  if (n === 1) return [[0]];
+  return permutations(n - 1).flatMap(p => Array.from({ length: n }, (_, i) => [...p.slice(0, i), n - 1, ...p.slice(i)]));
+}
+function course(d) {
+  const n = d > 0.6 ? 6 : 5, noms = shuffle([...PRENOMS]).slice(0, n);
+  let cand = permutations(n);
+  const paires = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) paires.push([i, j]);
+  const indices = [];
+  for (const [i, j] of shuffle(paires)) {
+    const nc = cand.filter(p => p.indexOf(i) < p.indexOf(j));
+    if (nc.length < cand.length) { indices.push(`${noms[i]} arrive avant ${noms[j]}.`); cand = nc; }
+    if (cand.length === 1) break;
+  }
+  const k = R(2, n - 1);
+  return Q(`Lors d'une course sans ex æquo : ${indices.join(" ")} Qui arrive en ${k}e position ?`, noms[k - 1]);
+}
 const GEN = [
   { min: 1, f: d => { const a = R(2, 10 + Math.round(40 * d)), k = R(2, 5 + Math.round(20 * d)); return suite([0, 1, 2, 3, 4].map(i => a + i * k), a + 5 * k); } },
   { min: 1, max: 50, f: () => { const n = R(3, 9), M = R(20, 200); return Q(`${n} chats attrapent ${n} souris en ${n} minutes. Combien de chats faut-il pour attraper ${M} souris en ${M} minutes ?`, n); } },
@@ -611,6 +746,36 @@ const GEN = [
   { min: 85, f: () => { const m = R(3, 7), n = R(3, 7); return Q(`Sur un quadrillage de ${m} × ${n} carreaux, combien de chemins mènent du coin inférieur gauche au coin supérieur droit en suivant les lignes, uniquement vers la droite ou vers le haut ?`, binom(m + n, m)); } },
   { min: 90, f: () => { const m = R(3, 8), n = R(3, 8); return Q(`Combien de rectangles de toutes tailles peut-on tracer en suivant les lignes d'une grille de ${m} × ${n} cases ?`, (m + 1) * m / 2 * (n + 1) * n / 2); } },
   { min: 90, f: () => { const s = R(5, 20); let c = 0; for (let i = 1; i <= 999; i++) if ([...String(i)].reduce((x, y) => x + +y, 0) === s) c++; return Q(`Combien d'entiers de 1 à 999 ont une somme de chiffres égale à ${s} ?`, c); } },
+  /* énigmes variées : lettres, codes, logique, temps, géométrie… */
+  { min: 1, max: 40, f: () => { const a = R(20, 100), b = R(10, 160 - a); return Q(`Dans un triangle, deux angles mesurent ${a}° et ${b}°. Combien mesure le troisième, en degrés ?`, 180 - a - b); } },
+  { min: 3, max: 50, f: () => { const i = R(7, 25), k = R(2, 6); return Q(`Quelle est la ${k}e lettre avant ${LETTRE(i)} dans l'alphabet ?`, LETTRE(i - k).toLowerCase()); } },
+  { min: 5, max: 55, f: () => { const c = R(3, 25); return Q(`Un carré a un périmètre de ${4 * c} cm. Quelle est son aire, en cm² ?`, c * c); } },
+  { min: 5, f: d => { const h = R(0, 23), m = R(0, 59), add = R(25, 100 + Math.round(1200 * d)); return Q(`Il est ${h} h ${pad2(m)}. Quelle heure sera-t-il dans ${add} minutes ? (format hh:mm)`, ...repHeure(h * 60 + m + add)); } },
+  { min: 8, f: () => { const w = pick(MOTS_SIMPLES); return Q(`Avec A = 1, B = 2, … Z = 26, quelle est la somme des lettres du mot ${w} ?`, [...w].reduce((s, c) => s + c.charCodeAt(0) - 64, 0)); } },
+  { min: 8, f: () => { for (;;) { const w1 = R(2, 12), j1 = R(2, 20), t = w1 * j1, w2 = R(2, 24); if (w2 !== w1 && t % w2 === 0) return Q(`${w1} ouvriers construisent un mur en ${j1} jours. Combien de jours faut-il à ${w2} ouvriers travaillant au même rythme ?`, t / w2); } } },
+  { min: 10, f: d => { const n = R(10, 200 + Math.round(3700 * d)); return Q(`Écrivez en chiffres arabes le nombre romain ${ROMAIN(n)}.`, n); } },
+  { min: 10, f: d => course(d) },
+  { min: 12, f: () => { const v = 400 * R(1, 10), p = pick([10, 20, 25, 50]); return Q(`Un objet coûte ${v} €. Son prix augmente de ${p} %, puis baisse de ${p} %. Combien coûte-t-il maintenant, en euros ?`, v * (10000 - p * p) / 10000); } },
+  { min: 12, f: () => { const P = [11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97], C = [21, 27, 33, 39, 49, 51, 57, 63, 69, 77, 81, 87, 91, 93]; const x = pick(C), l = shuffle([...shuffle([...P]).slice(0, 4), x]); return Q(`Un seul de ces nombres n'est pas premier : ${l.join(", ")}. Lequel ?`, x); } },
+  { min: 15, f: () => { const S2 = R(2, 12); return Q(`On lance deux dés à six faces, un rouge et un bleu. Parmi les 36 résultats possibles, combien donnent une somme de ${S2} ?`, 6 - Math.abs(S2 - 7)); } },
+  { min: 15, f: () => { const w = pick(MOTS_LONGS); return Q(`Combien de lettres différentes contient le mot ${w} ?`, new Set(w).size); } },
+  { min: 15, f: () => { let p, q; do { p = R(1, 6); q = R(2, 8); } while (p === q); const k = R(5, 60); return Q(`On partage ${(p + q) * k} € entre Léa et Tom, proportionnellement à ${p} pour Léa et ${q} pour Tom. Combien reçoit Tom, en euros ?`, q * k); } },
+  { min: 18, f: () => { const D = [["le nord", 0, 1], ["le sud", 0, -1], ["l'est", 1, 0], ["l'ouest", -1, 0]]; let x = 0, y = 0; const pas = Array.from({ length: R(4, 6) }, () => { const [n, dx, dy] = pick(D), k = R(2, 15); x += dx * k; y += dy * k; return `${k} pas vers ${n}`; }); return Q(`Un robot fait ${pas.join(", puis ")}. Combien de pas, au minimum, en ne marchant que vers le nord, le sud, l'est ou l'ouest, le séparent de son point de départ ?`, Math.abs(x) + Math.abs(y)); } },
+  { min: 20, f: () => { const m1 = R(0, 9), m2 = R(m1 + 1, 11), j0 = R(0, 6); let o = 0; for (let m = m1; m < m2; m++) o += JOURS_MOIS[m]; return Q(`Dans une année non bissextile, le 1er ${MOIS[m1]} est un ${JOURS[j0]}. Quel jour de la semaine est le 1er ${MOIS[m2]} ?`, JOURS[(j0 + o) % 7]); } },
+  { min: 20, f: () => { if (Math.random() < 0.5) { const n = R(8, 128); return Q(`${n} équipes s'affrontent dans un tournoi à élimination directe (le perdant de chaque match est éliminé). Combien de matchs faut-il pour désigner le vainqueur ?`, n - 1); } const n = R(4, 20); return Q(`Dans un championnat de ${n} équipes, chaque équipe rencontre chacune des autres deux fois (aller et retour). Combien de matchs sont joués ?`, n * (n - 1)); } },
+  { min: 20, f: () => { const k = R(3, 13), a = R(1, 200), b = a + R(50, 900); return Q(`Combien de multiples de ${k} y a-t-il entre ${a} et ${b}, bornes comprises ?`, Math.floor(b / k) - Math.floor((a - 1) / k)); } },
+  { min: 25, f: d => { const n = R(14, 100 + Math.round(2900 * d)); return Q(`Écrivez ${n} en chiffres romains.`, ROMAIN(n).toLowerCase()); } },
+  { min: 25, f: d => { const x = R(-12, 25); if (d < 0.5) { const a = R(2, 9), b = R(-20, 30); return Q(`Trouvez x : ${a}x ${b < 0 ? "−" : "+"} ${Math.abs(b)} = ${a * x + b}`, x); } let a, c; do { a = R(2, 9); c = R(1, 8); } while (a === c); const b = R(1, 9), e = a * (x - b) - c * x; return Q(`Trouvez x : ${a}(x − ${b}) = ${c}x ${e < 0 ? "−" : "+"} ${Math.abs(e)}`, x); } },
+  { min: 30, f: () => menteurs() },
+  { min: 30, f: d => { const w = pick(MOTS_SIMPLES), k = R(1, d > 0.6 ? 25 : 6), chif = [...w].map(c => LETTRE((c.charCodeAt(0) - 65 + k) % 26)).join(""); return Q(d > 0.75 ? `Toutes les lettres d'un mot ont été décalées d'un même nombre de rangs dans l'alphabet (après Z, on revient à A). Le message chiffré est ${chif}. Quel était le mot ?` : `Chaque lettre d'un mot a été décalée de ${k} rang${k > 1 ? "s" : ""} vers la fin de l'alphabet (après Z, on revient à A). Le message chiffré est ${chif}. Quel était le mot ?`, w.toLowerCase()); } },
+  { min: 35, f: () => { const [a, b, v] = pick([[60, 40, 48], [30, 60, 40], [20, 30, 24], [40, 60, 48], [60, 90, 72], [12, 24, 16], [10, 15, 12], [90, 180, 120], [45, 90, 60], [70, 30, 42]]); return Q(`Un cycliste fait l'aller à ${a} km/h et le retour, sur la même route, à ${b} km/h. Quelle est sa vitesse moyenne sur l'aller-retour, en km/h ?`, v); } },
+  { min: 35, f: () => { const a = R(4, 40), b = R(4, 40), g = pgcd(a, b); return Q(`Quel est le plus petit nombre entier positif divisible à la fois par ${a} et par ${b} ?`, a * b / g); } },
+  { min: 40, f: () => { const S2 = R(15, 70), r = S2 % 9; return Q(`Quel est le plus petit entier positif dont la somme des chiffres vaut ${S2} ?`, (r ? String(r) : "") + "9".repeat(Math.floor(S2 / 9))); } },
+  { min: 40, f: () => { for (;;) { const a = R(1, 5), b = R(1, 5), p = 5 * R(1, 10), q = 5 * R(11, 18), s = a * p + b * q; if (s % (a + b) === 0) return Q(`On mélange ${a} L de sirop à ${p} % de sucre avec ${b} L de sirop à ${q} % de sucre. Quel est le pourcentage de sucre du mélange ?`, s / (a + b)); } } },
+  { min: 40, f: d => { const h = R(1, 12), m = d > 0.7 ? R(1, 59) : R(0, 11) * 5, t = (720 - (h % 12 * 60 + m)) % 720, H = Math.floor(t / 60) || 12, M = t % 60; return Q(`Dans un miroir, une horloge à aiguilles sans chiffres semble indiquer ${h} h ${pad2(m)}. Quelle heure indique-t-elle réellement, entre 1 h 00 et 12 h 59 ? (format hh:mm)`, ...repHeure(H * 60 + M), ...repHeure((H + 12) % 24 * 60 + M)); } },
+  { min: 45, f: d => { const b = R(3, 8), n = R(20, 300 + Math.round(2000 * d)); return Q(`Le nombre ${n.toString(b)} est écrit en base ${b}. Écrivez-le en base 10.`, n); } },
+  { min: 50, f: () => { const N = R(8, 25); let c = 0; for (let a = 0; 5 * a <= N; a++) for (let b = 0; 5 * a + 2 * b <= N; b++) c++; return Q(`De combien de façons peut-on payer exactement ${N} € avec des billets de 5 € et des pièces de 2 € et de 1 € ? Seul le nombre de billets et de pièces de chaque sorte compte.`, c); } },
+  { min: 50, f: () => { const N = R(4, 250); let k = 0, p = 1; while (p < N) { p *= 3; k++; } return Q(`Parmi ${N} pièces identiques, une seule est un peu plus lourde. Avec une balance à deux plateaux, combien de pesées faut-il au minimum, dans le pire des cas, pour la trouver à coup sûr ?`, k); } },
   /* 60 énigmes fixes supplémentaires, en trois paliers */
   { min: 1, max: 60, cap: 4, f: (d, fx, px) => px[0].pop() },
   { min: 25, cap: 4, f: (d, fx, px) => px[1].pop() },
@@ -689,14 +854,21 @@ function genererQuestions(L) {
   const dispo = GEN.filter(g => g.min <= L && (g.max ?? 999) >= L);
   const poids = g => 1 + g.min * L / 2000;
   const usage = new Map(), qs = [], fx = shuffle([...FIXES]), px = ENIGMES_PLUS.map(t => shuffle([...t]));
-  for (let garde = 0; qs.length < n && garde < 2000; garde++) {
+  /* variété : chaque type d'énigme une seule fois par série, peu de suites,
+     et on évite les énigmes déjà vues lors des tentatives précédentes */
+  const kVus = pfx() + "vus", vus = new Set(store.get(kVus) || []);
+  const estSuite = q => /suite :/.test(q.q), maxSuites = Math.max(2, Math.round(n / 8));
+  for (let garde = 0; qs.length < n && garde < 3000; garde++) {
     let r = Math.random() * dispo.reduce((s, g) => s + poids(g), 0);
     const g = dispo.find(x => (r -= poids(x)) < 0) || dispo[0];
-    const u = usage.get(g) || 0; if (u >= (g.cap ?? 2)) continue;
+    const u = usage.get(g) || 0; if (u >= (g.cap ?? 1) + (garde > 1500 ? 1 : 0)) continue;
     const q = g.f(d, fx, px); if (!q || qs.some(x => x.q === q.q)) continue;
+    if (estSuite(q) && qs.filter(estSuite).length >= maxSuites && garde < 2500) continue;
+    if (vus.has(fnv(q.q)) && garde < 2000) continue;
     usage.set(g, u + 1); qs.push(q);
   }
-  return qs;
+  store.set(kVus, [...vus, ...qs.map(q => fnv(q.q))].slice(-800));
+  return shuffle(qs);
 }
 function norm(s) {
   return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/,/g, ".").trim()
@@ -834,7 +1006,7 @@ const Probleme = {
 const EPREUVES = {
   1: { slug: "potions", court: "Potions", nom: "Laboratoire des potions", couleur: "--vert", mod: Potions,
        accroche: "Combinez des molécules pour recréer les potions du grimoire. Mi et Nu ont 1 % de chance d'exploser.",
-       desc: "Chaque niveau ajoute des potions, réduit les essais et cache un peu plus les lois de la chimie. Mi et Nu deviennent indispensables, et chaque goutte peut tout faire exploser." },
+       desc: "L'ordre des gestes, le nombre de doses et la chauffe changent tout. Chaque niveau ajoute des potions et des molécules, réduit les essais, arrache des pages du carnet, puis plonge le laboratoire dans le brouillard. Mi et Nu peuvent tout faire exploser." },
   2: { slug: "enigmes", court: "Énigmes", nom: "Marathon des énigmes", couleur: "--soufre", mod: Enigmes,
        accroche: "Des séries d'énigmes de plus en plus longues et rapides. Seul le sans-faute compte.",
        desc: "De 5 énigmes en 2 minutes chacune au niveau 1 à 35 énigmes en 36 secondes au niveau 100. Une seule erreur termine l'épreuve." },
