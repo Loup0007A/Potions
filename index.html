@@ -175,6 +175,30 @@ textarea.brouillon:focus{border-color:var(--acc)}
 .boom{position:fixed;inset:0;pointer-events:none;z-index:50;background:radial-gradient(circle,rgba(255,215,120,.95),rgba(255,107,107,.65) 38%,transparent 72%);animation:boom .9s ease-out forwards}
 @keyframes boom{from{opacity:1;transform:scale(.3)}to{opacity:0;transform:scale(2.3)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Niveau caché 101 : l'Épreuve de l'Archive */
+body.c101{--acc:#C9CCF7;background:radial-gradient(1100px 600px at 50% -260px,rgba(201,204,247,.18),transparent 72%) no-repeat,#0B0D22}
+body.c101::before{content:"";position:fixed;inset:-30%;pointer-events:none;z-index:0;opacity:.22;
+  background:conic-gradient(from 0deg,var(--vert),var(--soufre),var(--uv),var(--vert));filter:blur(90px);animation:a101-tour 24s linear infinite}
+@keyframes a101-tour{to{transform:rotate(360deg)}}
+main,.barre{position:relative;z-index:1}
+.g101{background:linear-gradient(120deg,var(--vert),var(--soufre) 50%,var(--uv));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 24px rgba(201,204,247,.35))}
+.cine{margin-top:30px;display:grid;gap:12px;max-width:62ch}
+.cine p{opacity:0;transform:translateY(10px);animation:a101-ligne .9s ease forwards;color:var(--doux);font-size:18px}
+.cine p b{color:var(--texte)}
+@keyframes a101-ligne{to{opacity:1;transform:none}}
+.porte101{margin-top:28px;display:flex;align-items:center;gap:18px;padding:18px 22px;border-radius:18px;text-decoration:none;
+  background:linear-gradient(110deg,rgba(63,210,166,.12),rgba(245,200,66,.12),rgba(168,144,255,.14));border:1px solid rgba(201,204,247,.45);animation:a101-porte 2.6s ease-in-out infinite alternate}
+.porte101 b{font:800 30px/1 Unbounded,sans-serif}
+.porte101 span{color:var(--doux)}
+@keyframes a101-porte{from{box-shadow:0 0 26px -14px #C9CCF7}to{box-shadow:0 0 56px -8px #C9CCF7}}
+.interlude{text-align:center;padding:60px 0}
+.interlude .num{font:700 13px/1 "JetBrains Mono",monospace;letter-spacing:.3em;text-transform:uppercase;color:var(--acc)}
+.interlude h1{margin-top:16px}
+.interlude .chapo{margin-inline:auto}
+.interlude .actions{justify-content:center}
+.etapes101{display:flex;gap:8px;justify-content:center;margin-top:22px}
+.etapes101 i{width:46px;height:6px;border-radius:4px;background:var(--nuit3)}
+.etapes101 i.ok{background:var(--vert)}.etapes101 i.cours{background:var(--acc)}
 </style>
 <!-- S.I.D. : synchronise la progression entre appareils quand le site est ouvert depuis le S.I.D. (sans effet sinon) -->
 <script src="https://sid-quest.vercel.app/sid-sync.js" async></script>
@@ -233,10 +257,12 @@ let EMAIL = (() => {
 })();
 /* progression et cooldown propres à chaque adresse */
 const pfx = () => "sq_" + fnv(EMAIL) + "_";
-const cdKey = (e, n) => pfx() + (CONFIG.COOLDOWN_PORTEE === "global" ? "cd_global" : CONFIG.COOLDOWN_PORTEE === "niveau" ? `cd_${e}_${n}` : `cd_${e}`);
+const cdKey = (e, n) => n === 101 ? pfx() + "cd_101" : pfx() + (CONFIG.COOLDOWN_PORTEE === "global" ? "cd_global" : CONFIG.COOLDOWN_PORTEE === "niveau" ? `cd_${e}_${n}` : `cd_${e}`);
 const cooldown = (e, n) => Math.max(0, (store.get(cdKey(e, n)) || 0) - Date.now());
 const prog = e => +(store.get(pfx() + "prog_" + e) || 0);
 const debloque = (e, n) => CONFIG.TOUT_DEBLOQUE || n <= prog(e) + 1;
+/* Niveau caché 101 : ouvert seulement quand les trois épreuves sont à 100. */
+const ouvert101 = () => [1, 2, 3].every(e => prog(e) >= NB);
 
 /* maths */
 const modpow = (b, e, m) => { let r = 1n, B = BigInt(b) % BigInt(m), E = BigInt(e); const M = BigInt(m); while (E > 0n) { if (E & 1n) r = r * B % M; B = B * B % M; E >>= 1n; } return r; };
@@ -263,6 +289,7 @@ function route() {
   const brut = modeHash() ? location.hash.replace(/^#/, "") : location.pathname.slice(CONFIG.BASE.length);
   const seg = brut.split("/").filter(s => s && s !== "index.html");
   if (!seg.length) return { vue: "accueil" };
+  if (seg.length === 1 && seg[0] === "101") return ouvert101() ? { vue: "niveau101" } : { vue: "inconnu" };
   const e = SLUGS[seg[0]] || (/^[123]$/.test(seg[0]) ? +seg[0] : 0);
   if (!e) return { vue: "inconnu" };
   if (seg.length === 1) return { vue: "carte", e };
@@ -275,16 +302,19 @@ function rendre() {
   clearInterval(ivVue);
   const r = route();
   document.body.dataset.e = r.e || "";
+  document.body.classList.toggle("c101", r.vue === "niveau101");
   majFil(r); majCompte();
   window.scrollTo(0, 0);
   if (!EMAIL) { $("#fil").innerHTML = ""; return vueEmail(); }
   if (r.vue === "accueil") vueAccueil();
   else if (r.vue === "carte") vueCarte(r.e);
   else if (r.vue === "niveau") vueIntro(r.e, r.n);
+  else if (r.vue === "niveau101") vueIntro101();
   else vueInconnu();
 }
 function majFil(r) {
   const f = $("#fil"); if (!r || r.vue === "accueil" || r.vue === "inconnu") { f.innerHTML = ""; return; }
+  if (r.vue === "niveau101") { f.innerHTML = `<span class="sep">/</span><span>L'Archive</span>`; return; }
   const E = EPREUVES[r.e];
   f.innerHTML = `<span class="sep">/</span><a data-nav="/${r.e}" href="${lien("/" + r.e)}">${E.court}</a>` + (r.n ? `<span class="sep">/</span><span>Niveau ${r.n}</span>` : "");
 }
@@ -349,13 +379,59 @@ function lancer(e, n) {
   window.scrollTo(0, 0);
   EPREUVES[e].mod.start(app, n);
 }
+/* Niveau 101 : potion, énigmes et problème du niveau 100 d'affilée, sans droit à l'erreur. */
+const ORDRE101 = [1, 2, 3];
+const RECITS101 = [
+  "L'Archive s'ouvre sur un laboratoire. Recréez ses potions, dans le brouillard, sans faire exploser le chaudron.",
+  "Les murs se couvrent d'énigmes. Trente-cinq, sans une seule erreur.",
+  "Au cœur de l'Archive, un dernier problème. Une seule réponse, une seule tentative."
+];
+function lancer101() {
+  if (!EMAIL || !ouvert101() || cooldown(2, 101) > 0) return rendre();
+  const now = Date.now();
+  S = { id: uid(), e: 2, n: 101, chaine: ORDRE101, etape: 0, scores: [], debut: now, fini: false, armeA: now + 600, limite: now + 75 * 60000, ivs: [] };
+  store.set(K_ACTIF, { id: S.id, e: 2, n: 101, debut: now, email: EMAIL });
+  store.set(cdKey(2, 101), now + CONFIG.COOLDOWN_MIN * 60000);
+  $("#fil").classList.add("hidden"); $("#compte").classList.add("hidden");
+  const t = $("#timer"); t.classList.remove("hidden", "alerte"); t.textContent = mmss(S.limite - now);
+  S.ivs.push(setInterval(() => {
+    const rest = S.limite - Date.now();
+    t.textContent = mmss(rest); t.classList.toggle("alerte", rest < 5 * 60000);
+    if (rest <= 0) { const m = EPREUVES[S.chaine[S.etape]].mod; if (S.mod) m.expire(); else terminer({ statut: "temps_ecoule", score: 0, details: "" }); }
+  }, 250));
+  etape101();
+}
+function etape101() {
+  const e = S.chaine[S.etape], E = EPREUVES[e];
+  S.mod = null;
+  document.body.dataset.e = e;
+  window.scrollTo(0, 0);
+  app.innerHTML = `<div class="interlude"><p class="num">Épreuve ${S.etape + 1} sur 3</p><h1>${E.nom}</h1>
+    <p class="chapo">${RECITS101[S.etape]}</p>
+    <div class="etapes101">${ORDRE101.map((_, k) => `<i class="${k < S.etape ? "ok" : k === S.etape ? "cours" : ""}"></i>`).join("")}</div>
+    <div class="actions"><button class="btn" id="go101">Entrer</button></div></div>`;
+  $("#go101").onclick = () => E.mod.start(app, NB);
+  $("#go101").focus();
+}
 function terminer({ statut, score = 0, details = "", raison = "" }) {
   if (!S || S.fini) return;
+  if (S.chaine) {
+    if (statut === "reussi" && S.etape < S.chaine.length - 1) {
+      S.scores.push(score);
+      S.ivs.slice(1).forEach(clearInterval); S.ivs = S.ivs.slice(0, 1);
+      S.etape++;
+      return etape101();
+    }
+    if (statut === "reussi") S.scores.push(score);
+    score = Math.round(S.scores.reduce((a, b) => a + b, 0) / S.chaine.length);
+    details = `chaine=${S.etape + (statut === "reussi" ? 1 : 0)}/3;` + details;
+  }
   S.fini = true; S.ivs.forEach(clearInterval);
   const fin = Date.now();
   store.set(cdKey(S.e, S.n), fin + CONFIG.COOLDOWN_MIN * 60000);
   store.del(K_ACTIF);
-  if (statut === "reussi" && S.n > prog(S.e)) store.set(pfx() + "prog_" + S.e, S.n);
+  if (statut === "reussi" && S.n === 101) store.set(pfx() + "r101", Date.now());
+  else if (statut === "reussi" && S.n > prog(S.e)) store.set(pfx() + "prog_" + S.e, Math.min(S.n, NB));
   const r = { e: S.e, n: S.n, session: S.id, statut, score, details, raison, debut: S.debut, fin };
   envoyer(r);
   $("#timer").classList.add("hidden"); $("#fil").classList.remove("hidden"); majCompte();
@@ -973,9 +1049,9 @@ const Probleme = {
     return [`Un problème tiré parmi ${pl(c.familles.length, "famille")} de ce palier`, `${c.essais} tentatives`, "La réponse est un nombre entier", c.essais === 3 ? "100 points du premier coup, 70 au deuxième, 40 au troisième" : "100 points du premier coup, 60 au second", "Ni calculatrice ni outil : seulement le raisonnement"];
   },
   start(root, L) {
-    const c = cfgProbleme(L), fam = c.familles[R(0, c.familles.length - 1)], p = fam.f(L), rep = p.rep.toString();
+    const c = { ...cfgProbleme(L), ...(S && S.n === 101 ? { essais: 1 } : {}) }, fam = c.familles[R(0, c.familles.length - 1)], p = fam.f(L), rep = p.rep.toString();
     const st = S.mod = { essais: c.essais };
-    const bareme = c.essais === 3 ? [40, 70, 100] : [60, 100];
+    const bareme = c.essais === 3 ? [40, 70, 100] : c.essais === 2 ? [60, 100] : [100];
     root.innerHTML = `
     <div class="scene">
       <div class="eh"><span><b>${fam.titre}</b></span><span id="pe">${pl(c.essais, "tentative")}</span></div>
@@ -1030,7 +1106,8 @@ function vueAccueil() {
         ${miniGrille(e)}
         <div><h2>${E.nom}</h2><p>${E.accroche}</p></div>
         <div class="pied"><span>${etatTexte(e)}</span><span class="cd" data-cd="${e}"></span><span class="ouvrir">Voir les niveaux</span></div>
-      </a>`; }).join("")}</div>`;
+      </a>`; }).join("")}</div>
+    ${ouvert101() ? `<a class="porte101" data-nav="/101" href="${lien("/101")}"><b class="g101">101</b><span>${store.get(pfx() + "r101") ? "L'Archive vous a reconnu. Ses portes restent ouvertes pour qui veut y retourner." : "Trois fois cent niveaux… et une porte qui n'était pas là hier. L'Archive vous attend."}</span></a>` : ""}`;
   const maj = () => app.querySelectorAll("[data-cd]").forEach(el => { const r = cooldown(+el.dataset.cd, prog(+el.dataset.cd) + 1); el.textContent = r ? `Pause : ${hm(r)}` : ""; });
   maj(); ivVue = setInterval(maj, 15000);
 }
@@ -1060,6 +1137,32 @@ function vueCarte(e) {
     </div>
     <div class="legende"><span><i class="ok"></i>Réussi</span><span><i class="ouvert"></i>Prochain niveau</span><span><i></i>Verrouillé</span></div>`;
   const maj = () => { const r = cooldown(e, p + 1), b = $("#cdb"); if (!b) return; b.classList.toggle("hidden", !r); b.textContent = r ? `Prochaine tentative possible dans ${hm(r)}.` : ""; };
+  maj(); ivVue = setInterval(maj, 15000);
+}
+function vueIntro101() {
+  app.innerHTML = `<div class="nv-tete"><div class="gros g101">101</div><div><h1>L'Épreuve de l'Archive</h1><p>Niveau caché</p>
+      <div class="diff">${Array.from({ length: 12 }, () => '<i class="on"></i>').join("")}</div></div></div>
+    <div class="cine">
+      <p style="animation-delay:.2s">Trois cents niveaux. Potions, énigmes, problèmes : vous avez tout résolu.</p>
+      <p style="animation-delay:1.5s">Alors l'Archive s'est ouverte, celle qui garde ce que le S.I.D. sait vraiment.</p>
+      <p style="animation-delay:2.9s"><b>Les trois épreuves du niveau 100, d'une seule traite, en 75 minutes.</b></p>
+      <p style="animation-delay:4.3s"><b>Une potion ratée, une énigme fausse, une mauvaise réponse au problème : tout s'arrête.</b></p>
+      <p style="animation-delay:5.7s">Ceux qui en ressortent ne regardent plus jamais un lien de la même façon.</p>
+    </div>
+    <div class="fiche" style="margin-top:34px">
+      <div class="bloc"><h2>L'ordre de l'Archive</h2><ol class="puces">${ORDRE101.map(e => `<li><b>${EPREUVES[e].nom}</b> — ${EPREUVES[e].mod.resume(NB).slice(0, e === 3 ? 1 : 2).join(", ")}${e === 3 ? ", une seule tentative" : ""}</li>`).join("")}</ol></div>
+      <div class="bloc danger"><h2>Les règles du 101</h2><ul class="puces">
+        <li>Les trois épreuves s'enchaînent ; chacune doit être réussie pour passer à la suivante.</li>
+        <li>Au problème final, une seule tentative.</li>
+        <li>Changer d'onglet ou de fenêtre, cliquer hors de l'épreuve ou recharger la page l'annule aussitôt.</li>
+        <li>Durée maximale : 75 minutes pour les trois.</li>
+        <li>Pause de ${CONFIG.COOLDOWN_MIN / 60} heures après la tentative, réussie ou non.</li>
+      </ul></div>
+    </div>
+    <div class="actions"><button class="btn" id="go">Entrer dans l'Archive</button><a class="btn second" data-nav="/" href="${lien("/")}">Toutes les épreuves</a></div>
+    <p class="aide" id="cdi"></p>`;
+  $("#go").onclick = () => lancer101();
+  const maj = () => { const r = cooldown(2, 101), b = $("#go"); if (!b) return; b.disabled = r > 0; $("#cdi").textContent = r ? `Prochaine tentative possible dans ${hm(r)}.` : ""; };
   maj(); ivVue = setInterval(maj, 15000);
 }
 function vueIntro(e, n) {
@@ -1096,7 +1199,7 @@ function vueResultat(r) {
     explosion: "Une molécule instable a explosé. L'expérience est arrêtée.",
     temps_ecoule: "L'heure est passée.",
     echoue: { mauvaise_reponse: "Une réponse était fausse.", temps_enigme_depasse: "Le temps de l'énigme est dépassé.", essais_epuises: "Tous les essais ont été utilisés.", tentatives_epuisees: "Les tentatives sont épuisées.", abandon_volontaire: "Vous avez arrêté l'épreuve." }[r.raison] || "",
-    reussi: r.n < NB ? `Le niveau ${r.n + 1} est maintenant ouvert.` : "Vous avez terminé les cent niveaux."
+    reussi: r.n === 101 ? "L'Archive vous a reconnu. Ouvert depuis le S.I.D., ce résultat vous vaut le titre « Architecte du Réseau »." : r.n < NB ? `Le niveau ${r.n + 1} est maintenant ouvert.` : "Vous avez terminé les cent niveaux."
   }[r.statut] || "";
   const bonne = (r.details.match(/bonne_reponse=([^;]+)/) || [])[1];
   const suiv = r.statut === "reussi" && r.n < NB;
@@ -1104,12 +1207,12 @@ function vueResultat(r) {
   app.innerHTML = `
     <div class="resultat">
       <h1>${LIBELLES[r.statut] || r.statut}</h1>
-      <p class="chapo" style="margin-inline:auto">${EPREUVES[r.e].nom}, niveau ${r.n}. ${exp}${bonne && r.statut !== "invalide" ? ` La réponse attendue était ${bonne}.` : ""}</p>
+      <p class="chapo" style="margin-inline:auto">${r.n === 101 ? `L'Épreuve de l'Archive, niveau 101 (${(r.details.match(/chaine=(\d)\/3/) || [])[1] || 0} épreuve(s) sur 3 réussie(s))` : `${EPREUVES[r.e].nom}, niveau ${r.n}`}. ${exp}${bonne && r.statut !== "invalide" ? ` La réponse attendue était ${bonne}.` : ""}</p>
       <div class="score" ${r.statut === "reussi" ? "" : 'style="color:var(--rouge)"'}>${r.score}<small> / 100</small></div>
       <p class="aide">Résultat transmis. Prochaine tentative dans ${hm(cooldown(r.e, r.n + (suiv ? 1 : 0)))}.</p>
       <div class="actions">
         ${suiv ? `<a class="btn" data-nav="/${r.e}/${r.n + 1}" href="${lien(`/${r.e}/${r.n + 1}`)}">Voir le niveau ${r.n + 1}</a>` : ""}
-        <a class="btn ${suiv ? "second" : ""}" data-nav="/${r.e}" href="${lien("/" + r.e)}">Voir les niveaux</a>
+        ${r.n === 101 ? "" : `<a class="btn ${suiv ? "second" : ""}" data-nav="/${r.e}" href="${lien("/" + r.e)}">Voir les niveaux</a>`}
         <a class="btn second" data-nav="/" href="${lien("/")}">Toutes les épreuves</a>
       </div>
       <details><summary>Données transmises</summary><code>${derniereUrl.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</code></details>
