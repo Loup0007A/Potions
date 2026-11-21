@@ -199,6 +199,24 @@ main,.barre{position:relative;z-index:1}
 .etapes101{display:flex;gap:8px;justify-content:center;margin-top:22px}
 .etapes101 i{width:46px;height:6px;border-radius:4px;background:var(--nuit3)}
 .etapes101 i.ok{background:var(--vert)}.etapes101 i.cours{background:var(--acc)}
+/* Allié du S.I.D. (sage) */
+.allie{position:fixed;right:clamp(10px,3vw,26px);bottom:clamp(10px,3vw,26px);z-index:20;width:min(330px,calc(100vw - 20px));
+  background:color-mix(in srgb,var(--nuit2) 95%,transparent);border:1px solid var(--trait);border-radius:18px;padding:12px 14px;
+  backdrop-filter:blur(10px);box-shadow:0 20px 44px -24px #000;font-size:14px}
+.allie .at{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:inherit;font:inherit;cursor:pointer;text-align:left;padding:0}
+.allie .rg{flex:none;min-width:34px;height:34px;padding:0 6px;border-radius:10px;display:grid;place-items:center;font:800 13px/1 Unbounded,sans-serif;color:var(--nuit);background:var(--soufre)}
+.allie .rg.divin{background:linear-gradient(135deg,var(--vert),var(--soufre),var(--uv))}
+.allie .nm{min-width:0}.allie .nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.allie .nm small{color:var(--doux)}
+.allie .corps{margin-top:10px;display:grid;gap:8px}
+.allie.replie .corps{display:none}
+.allie .cpt{display:flex;flex-wrap:wrap;gap:6px}
+.allie .cpt span{background:var(--nuit3);border-radius:999px;padding:3px 10px;font-size:13px;color:var(--doux)}
+.allie .cpt b{color:var(--texte)}
+.allie .msg{background:var(--nuit);border:1px solid var(--trait);border-radius:12px;padding:8px 10px;color:var(--texte)}
+.allie .msg:empty{display:none}
+.allie-intro ul{margin-top:4px}
+.allie-note{color:var(--soufre);font-size:14px;margin-top:6px}
 </style>
 <!-- S.I.D. : synchronise la progression entre appareils quand le site est ouvert depuis le S.I.D. (sans effet sinon) -->
 <script src="https://sid-quest.vercel.app/sid-sync.js" async></script>
@@ -211,6 +229,7 @@ main,.barre{position:relative;z-index:1}
   <div class="chrono hidden" id="timer" aria-live="off">60:00</div>
 </header>
 <main id="app"></main>
+<aside class="allie hidden" id="allie" aria-live="polite"></aside>
 
 <script>
 /* ===================== CONFIGURATION ===================== */
@@ -238,6 +257,7 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString
 const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
 const hm = ms => { const m = Math.ceil(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}` : `${m} min`; };
 const pl = (n, s, p = s + "s") => `${n} ${n > 1 ? p : s}`;
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const mem = {};
 const store = {
   get(k) { try { const v = localStorage.getItem(k); return v == null ? (mem[k] ?? null) : JSON.parse(v); } catch (e) { return mem[k] ?? null; } },
@@ -361,12 +381,85 @@ function envoyer(r) {
   try { window.parent.postMessage({ type: "sid-quest-resultat", ...data, sig: p.get("sig"), url }, "*"); } catch (e) {}
 }
 
+/* ===================== ALLIÉ DU S.I.D. ===================== */
+/* Ouvert depuis le S.I.D. avec un sage équipé, l'adresse porte sid_allie :
+   son nom, son rang, sa ou ses spécialités et leurs valeurs (Lot 89). */
+const ALLIE = (() => {
+  try {
+    const raw = new URLSearchParams(location.search).get("sid_allie");
+    if (!raw) return null;
+    const bin = atob(raw.replace(/-/g, "+").replace(/_/g, "/"));
+    const j = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, ch => ch.charCodeAt(0))));
+    return j && j.k === "intelligence" && Array.isArray(j.s) && j.v ? j : null;
+  } catch (e) { return null; }
+})();
+const SPECS = { clairvoyant: "Clairvoyant", sablier: "Gardien du sablier", mentor: "Mentor", erudit: "Érudit" };
+const aSpec = sp => !!ALLIE && ALLIE.s.includes(sp);
+/* valeur d'une spécialité, bornée : l'adresse peut être modifiée à la main */
+function av(sp, k, def, max) {
+  if (!aSpec(sp)) return def;
+  const x = ALLIE.v[sp] && ALLIE.v[sp][k];
+  if (typeof def === "boolean") return x === true;
+  const n = Number(x);
+  return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : def;
+}
+const allieNom = () => ALLIE ? esc(String(ALLIE.n || "Votre sage").slice(0, 60)) : "";
+function allieLignes() {
+  if (!ALLIE) return [];
+  const L = [];
+  if (aSpec("clairvoyant")) L.push(`${SPECS.clairvoyant} : ${pl(av("clairvoyant", "indices", 0, 6), "indice")} par tentative (propriété cachée, page du carnet, début de la réponse).`);
+  if (aSpec("sablier")) L.push(`${SPECS.sablier} : +${av("sablier", "minutes", 0, 40)} min de tentative, +${av("sablier", "secondes", 0, 40)} s par énigme.`);
+  if (aSpec("mentor")) L.push(`${SPECS.mentor} : ${pl(av("mentor", "pardons", 0, 4), "erreur pardonnée", "erreurs pardonnées")} (énigme remplacée, chaudron éteint ou essais rendus, tentative de plus).`);
+  if (aSpec("erudit")) {
+    const p = av("erudit", "pages", 0, 1);
+    L.push(`${SPECS.erudit} : ${p >= 1 ? "carnet complet" : Math.round(p * 100) + " % des pages rendues"}, lexique fourni${av("erudit", "brouillard", false) ? ", brouillard levé" : ""} ; forme des réponses ; plus grand ou plus petit au problème${av("erudit", "chiffres", false) ? ", avec le nombre de chiffres" : ""}.`);
+  }
+  return L;
+}
+const allieIntro = () => ALLIE ? `<div class="bloc allie-intro"><h2>Votre sage : ${allieNom()}</h2><p style="color:var(--doux)">Rang ${esc(ALLIE.r)}${ALLIE.l ? `, éveil ${ALLIE.l}` : ""}, force ${String(ALLIE.f).replace(".", ",")} / 10. Il vous accompagne pendant la tentative.</p><ul class="puces">${allieLignes().map(x => `<li>${x}</li>`).join("")}</ul></div>` : "";
+/* au lancement d'une tentative (le niveau 101 compte pour une seule) */
+function allieDebut() {
+  if (!ALLIE) return;
+  S.al = { indices: av("clairvoyant", "indices", 0, 6), pardons: av("mentor", "pardons", 0, 4), aides: 0, msg: "", ouvert: !matchMedia("(max-width:640px)").matches };
+  S.limite += av("sablier", "minutes", 0, 40) * 60000;
+  majAllie();
+}
+function allieDit(t) { if (S && S.al) { S.al.msg = t; S.al.aides++; S.al.ouvert = true; majAllie(); } }
+/* pardon du mentor : true si une erreur est effacée */
+function alliePardon(t) {
+  if (!S || !S.al || S.al.pardons <= 0) return false;
+  S.al.pardons--; allieDit(`${SPECS.mentor} · ${t}`);
+  return true;
+}
+function majAllie() {
+  const el = $("#allie");
+  if (!ALLIE || !S || !S.al || S.fini) { el.classList.add("hidden"); return; }
+  const a = S.al, peutIndice = aSpec("clairvoyant") && a.indices > 0 && S.mod && typeof S.mod.indice === "function";
+  el.classList.remove("hidden"); el.classList.toggle("replie", !a.ouvert);
+  el.innerHTML = `<button type="button" class="at" id="al-t" aria-expanded="${a.ouvert}"><span class="rg ${ALLIE.r === "Divin" ? "divin" : ""}">${esc(ALLIE.r === "Divin" ? "✦" : ALLIE.r)}</span><span class="nm"><b>${allieNom()}</b><small>${ALLIE.s.map(x => SPECS[x] || x).join(" · ")}</small></span></button>
+    <div class="corps">
+      <div class="cpt">${aSpec("clairvoyant") ? `<span>Indices <b>${a.indices}</b></span>` : ""}${aSpec("mentor") ? `<span>Pardons <b>${a.pardons}</b></span>` : ""}${aSpec("sablier") ? `<span>Temps <b>+${av("sablier", "minutes", 0, 40)} min</b></span>` : ""}${aSpec("erudit") ? `<span>Savoir <b>actif</b></span>` : ""}</div>
+      ${aSpec("clairvoyant") ? `<button type="button" class="btn second petit" id="al-i" ${peutIndice ? "" : "disabled"}>Demander un indice</button>` : ""}
+      <div class="msg">${a.msg}</div>
+    </div>`;
+  $("#al-t").onclick = () => { a.ouvert = !a.ouvert; majAllie(); };
+  if ($("#al-i")) $("#al-i").onclick = () => {
+    if (!S || S.fini || !S.mod || typeof S.mod.indice !== "function" || a.indices <= 0) return;
+    const t = S.mod.indice();
+    if (!t) { allieDit("Rien à révéler pour l'instant."); a.aides--; return; }
+    a.indices--; allieDit(`${SPECS.clairvoyant} · ${t}`);
+    const champ = $("#ei") || $("#pi"); if (champ) champ.focus();
+  };
+}
+const allieDetails = () => ALLIE && S && S.al ? `;allie=${ALLIE.s.join("+")},f${ALLIE.f},aides${S.al.aides}` : "";
+
 /* ===================== SESSION ===================== */
 let S = null;
 function lancer(e, n) {
   if (!EMAIL || !debloque(e, n) || cooldown(e, n) > 0) return rendre();
   const now = Date.now();
   S = { id: uid(), e, n, debut: now, fini: false, armeA: now + 600, limite: now + CONFIG.DUREE_MAX_MIN * 60000, ivs: [] };
+  allieDebut();
   store.set(K_ACTIF, { id: S.id, e, n, debut: now, email: EMAIL });
   store.set(cdKey(e, n), now + CONFIG.COOLDOWN_MIN * 60000);
   $("#fil").classList.add("hidden"); $("#compte").classList.add("hidden");
@@ -378,6 +471,7 @@ function lancer(e, n) {
   }, 250));
   window.scrollTo(0, 0);
   EPREUVES[e].mod.start(app, n);
+  majAllie();
 }
 /* Niveau 101 : potion, énigmes et problème du niveau 100 d'affilée, sans droit à l'erreur. */
 const ORDRE101 = [1, 2, 3];
@@ -390,6 +484,7 @@ function lancer101() {
   if (!EMAIL || !ouvert101() || cooldown(2, 101) > 0) return rendre();
   const now = Date.now();
   S = { id: uid(), e: 2, n: 101, chaine: ORDRE101, etape: 0, scores: [], debut: now, fini: false, armeA: now + 600, limite: now + 75 * 60000, ivs: [] };
+  allieDebut();
   store.set(K_ACTIF, { id: S.id, e: 2, n: 101, debut: now, email: EMAIL });
   store.set(cdKey(2, 101), now + CONFIG.COOLDOWN_MIN * 60000);
   $("#fil").classList.add("hidden"); $("#compte").classList.add("hidden");
@@ -410,8 +505,9 @@ function etape101() {
     <p class="chapo">${RECITS101[S.etape]}</p>
     <div class="etapes101">${ORDRE101.map((_, k) => `<i class="${k < S.etape ? "ok" : k === S.etape ? "cours" : ""}"></i>`).join("")}</div>
     <div class="actions"><button class="btn" id="go101">Entrer</button></div></div>`;
-  $("#go101").onclick = () => E.mod.start(app, NB);
+  $("#go101").onclick = () => { E.mod.start(app, NB); majAllie(); };
   $("#go101").focus();
+  majAllie();
 }
 function terminer({ statut, score = 0, details = "", raison = "" }) {
   if (!S || S.fini) return;
@@ -426,7 +522,8 @@ function terminer({ statut, score = 0, details = "", raison = "" }) {
     score = Math.round(S.scores.reduce((a, b) => a + b, 0) / S.chaine.length);
     details = `chaine=${S.etape + (statut === "reussi" ? 1 : 0)}/3;` + details;
   }
-  S.fini = true; S.ivs.forEach(clearInterval);
+  details += allieDetails();
+  S.fini = true; S.ivs.forEach(clearInterval); majAllie();
   const fin = Date.now();
   store.set(cdKey(S.e, S.n), fin + CONFIG.COOLDOWN_MIN * 60000);
   store.del(K_ACTIF);
@@ -616,17 +713,34 @@ const Potions = {
   },
   start(root, L) {
     const c = cfgPotions(L), cibles = genererCibles(c, L), dispo = ingDispo(L);
-    const st = S.mod = { seq: [], faites: new Set(), essais: 0 };
-    const max = c.essaisMax;
+    /* Érudit : pages rendues, lexique fourni, brouillard levé */
+    const erudit = aSpec("erudit");
+    if (erudit) { c.lexique = true; if (av("erudit", "brouillard", false)) c.brouillard = false; }
+    const st = S.mod = { seq: [], faites: new Set(), essais: 0, dernier: null };
+    let max = c.essaisMax;
     const regles = REGLES.filter(r => !r.req || r.req.every(q => q === "feu" ? c.feu : dispo.some(x => x.id === q)));
     const variables = regles.filter(r => !r.fixe);
-    const arrachees = new Set(shuffle([...variables]).slice(0, Math.round(variables.length * c.cacheRegles)));
+    const arrachees = new Set(shuffle([...variables]).slice(0, Math.round(variables.length * c.cacheRegles * (1 - av("erudit", "pages", 0, 1)))));
+    /* Clairvoyant : une propriété cachée, sinon une page, sinon le dernier mélange */
+    st.indice = () => {
+      const k = cibles.findIndex((p, j) => !st.faites.has(j) && p.caches.length);
+      if (k >= 0) {
+        const t = cibles[k].caches.shift();
+        const li = $(`#cibles li[data-i="${k}"]`);
+        li.insertAdjacentHTML("beforeend", `<div class="revele">Propriété révélée : ${t}</div>`);
+        return `${cibles[k].nom} est aussi « ${t} ».`;
+      }
+      const page = [...root.querySelectorAll(".carnet li.arrachee")][0];
+      if (page) { page.classList.remove("arrachee"); page.textContent = regles[+page.dataset.k].t; return "Une page du carnet est rendue : " + regles[+page.dataset.k].t; }
+      if (c.brouillard && st.dernier) return `Le dernier mélange est ${st.dernier.join(", ")}.`;
+      return null;
+    };
     root.innerHTML = `
     <div class="labo">
       <section class="bloc">
         <h2>Grimoire du niveau ${L}</h2>
         <ol class="cibles" id="cibles">${cibles.map((p, i) => `<li data-i="${i}"><div class="cn"><span>${p.nom}</span><small>${pl(p.tags.length, "propriété")}</small></div><div class="cr">${p.enigme}</div><div class="indice"></div></li>`).join("")}</ol>
-        <details class="carnet" open><summary>Carnet de laboratoire</summary><ul>${regles.map(r => arrachees.has(r) ? `<li class="arrachee">Page arrachée.</li>` : `<li>${r.t}</li>`).join("")}</ul></details>
+        <details class="carnet" open><summary>Carnet de laboratoire</summary><ul>${regles.map((r, k) => arrachees.has(r) ? `<li class="arrachee" data-k="${k}">Page arrachée.</li>` : `<li>${r.t}</li>`).join("")}</ul></details>
         ${c.poetique && c.lexique ? `<details class="carnet"><summary>Lexique des alchimistes</summary><ul>${Object.entries(PHRASES).map(([t, p]) => `<li>${p} : ${t}</li>`).join("")}</ul></details>` : ""}
       </section>
       <section class="bloc">
@@ -672,11 +786,13 @@ const Potions = {
       const f = formule(st.seq);
       const nbInst = st.seq.filter(a => a === "mi" || a === "nu").length;
       for (let k = 0; k < nbInst; k++) if (Math.random() < 0.01) {
+        if (alliePardon("Le chaudron allait exploser : le mentor l'a refroidi à temps.")) break;
         document.body.insertAdjacentHTML("beforeend", '<div class="boom"></div>');
         setTimeout(() => document.querySelector(".boom")?.remove(), 1000);
         return terminer({ statut: "explosion", score: score(), details: details(), raison: "explosion_Mi_Nu" });
       }
       const tags = simuler(st.seq);
+      st.dernier = tags;
       let html, resume;
       if (!tags) { html = `<span class="mal">Sans eau, le mélange reste une poudre inerte.</span>`; resume = "poudre"; }
       else {
@@ -701,6 +817,7 @@ const Potions = {
       $("#pst").textContent = `${st.faites.size} / ${cibles.length} potions`;
       $("#ess").textContent = max === Infinity ? pl(st.essais, "essai") : `${st.essais} / ${max} essais`;
       if (st.faites.size === cibles.length) return setTimeout(() => terminer({ statut: "reussi", score: 100, details: details() }), 900);
+      if (st.essais >= max && alliePardon("Essais épuisés : le mentor vous en accorde 5 de plus.")) { max += 5; $("#ess").textContent = `${st.essais} / ${max} essais`; }
       if (st.essais >= max) setTimeout(() => terminer({ statut: "echoue", score: score(), details: details(), raison: "essais_epuises" }), 900);
     };
     majCz();
@@ -962,25 +1079,44 @@ const Enigmes = {
     return [pl(c.n, "énigme"), `${c.sec} secondes par énigme`, niv, "Une seule erreur ou un dépassement met fin à l'épreuve", `Réussite uniquement à ${c.n} / ${c.n}`];
   },
   start(root, L) {
-    const c = cfgEnigmes(L), qs = genererQuestions(L), N = qs.length;
-    const st = S.mod = { i: 0, ok: 0, fin: 0 };
+    const c = { ...cfgEnigmes(L) }, qs = genererQuestions(L), N = qs.length;
+    c.sec += av("sablier", "secondes", 0, 40);
+    const st = S.mod = { i: 0, ok: 0, fin: 0, vus: 0 };
+    /* Clairvoyant : longueur et début de la réponse, un caractère de plus à chaque indice */
+    st.indice = () => {
+      const a = String(qs[st.i].a[0]); st.vus = Math.min(a.length, st.vus + 1);
+      return `La réponse compte ${pl([...a].length, "caractère")} et commence par « ${[...a].slice(0, st.vus).join("")} ».`;
+    };
     root.innerHTML = `
     <div class="scene">
       <div class="eh"><span><b id="eprog"></b></span><span id="eqt"></span></div>
       <div class="barre-t"><i id="ebar"></i></div>
       <div class="question" id="eq"></div>
       <form class="rep" id="ef"><input id="ei" autocomplete="off" spellcheck="false" placeholder="Votre réponse" aria-label="Votre réponse"><button class="btn">Valider</button></form>
+      <p class="aide" id="eform"></p>
       <p class="aide">Répondez par un nombre ou un mot. Une erreur ou un dépassement de temps met fin à l'épreuve.</p>
     </div>`;
     const score = () => Math.round(st.ok / N * 100);
     const details = () => `enigmes=${st.ok}/${N}`;
-    const rate = raison => terminer({ statut: "echoue", score: score(), details: details() + ";bonne_reponse=" + qs[st.i].a[0], raison });
+    const rate = raison => {
+      /* Mentor : l'énigme est remplacée au lieu de finir l'épreuve */
+      const avant = qs[st.i];
+      if (alliePardon(`${raison === "mauvaise_reponse" ? "Mauvaise réponse" : "Temps dépassé"} : il fallait « ${avant.a[0]} ». Voici une autre énigme.`)) {
+        let nq = null;
+        for (let k = 0; k < 5 && !nq; k++) nq = genererQuestions(L).find(q => q.q !== avant.q) || null;
+        if (nq) { qs[st.i] = nq; return montrer(); }
+      }
+      terminer({ statut: "echoue", score: score(), details: details() + ";bonne_reponse=" + qs[st.i].a[0], raison });
+    };
     Enigmes.expire = () => terminer({ statut: "temps_ecoule", score: score(), details: details() });
     const montrer = () => {
       $("#eprog").textContent = `Énigme ${st.i + 1} sur ${N}`;
       $("#eq").innerHTML = qs[st.i].q;
       $("#ei").value = ""; $("#ei").focus();
-      st.fin = Date.now() + c.sec * 1000;
+      st.fin = Date.now() + c.sec * 1000; st.vus = 0;
+      /* Érudit : forme de la réponse */
+      const a = String(qs[st.i].a[0]), nb = /^-?\d+([.,]\d+)?$/.test(a.replace(/ /g, ""));
+      $("#eform").textContent = aSpec("erudit") ? `${SPECS.erudit} : la réponse est ${nb ? `un nombre de ${pl(a.replace(/[^0-9]/g, "").length, "chiffre")}` : `un mot de ${pl([...a].length, "caractère")}`}.` : "";
     };
     S.ivs.push(setInterval(() => {
       const rest = st.fin - Date.now();
@@ -1050,8 +1186,10 @@ const Probleme = {
   },
   start(root, L) {
     const c = { ...cfgProbleme(L), ...(S && S.n === 101 ? { essais: 1 } : {}) }, fam = c.familles[R(0, c.familles.length - 1)], p = fam.f(L), rep = p.rep.toString();
-    const st = S.mod = { essais: c.essais };
+    const st = S.mod = { essais: c.essais, vus: 0 };
     const bareme = c.essais === 3 ? [40, 70, 100] : c.essais === 2 ? [60, 100] : [100];
+    const chiffres = rep.replace("-", "");
+    st.indice = () => { st.vus = Math.min(chiffres.length, st.vus + 1); return `La réponse compte ${pl(chiffres.length, "chiffre")} et commence par ${chiffres.slice(0, st.vus)}.`; };
     root.innerHTML = `
     <div class="scene">
       <div class="eh"><span><b>${fam.titre}</b></span><span id="pe">${pl(c.essais, "tentative")}</span></div>
@@ -1069,9 +1207,12 @@ const Probleme = {
       if (!/^-?\d+$/.test(v) || S.fini) { $("#pm").textContent = "Entrez un nombre entier, sans virgule."; return; }
       st.essais--;
       if (BigInt(v).toString() === rep) return terminer({ statut: "reussi", score: bareme[st.essais], details: details() });
+      /* Érudit : sens de l'erreur, puis nombre de chiffres */
+      const sens = aSpec("erudit") ? ` ${SPECS.erudit} : la réponse est ${BigInt(rep) > BigInt(v) ? "plus grande" : "plus petite"}${av("erudit", "chiffres", false) ? ` et compte ${pl(chiffres.length, "chiffre")}` : ""}.` : "";
+      if (st.essais <= 0 && alliePardon("Dernière tentative manquée : le mentor vous en accorde une autre.")) st.essais = 1;
       if (st.essais <= 0) return terminer({ statut: "echoue", score: 0, details: details() + ";bonne_reponse=" + rep, raison: "tentatives_epuisees" });
       $("#pe").textContent = pl(st.essais, "tentative");
-      $("#pm").innerHTML = `<span class="mal">Ce n'est pas la bonne réponse.</span> Il reste ${pl(st.essais, "tentative")}.`;
+      $("#pm").innerHTML = `<span class="mal">Ce n'est pas la bonne réponse.</span> Il reste ${pl(st.essais, "tentative")}.${sens}`;
       $("#pi").value = "";
     };
   },
@@ -1151,11 +1292,12 @@ function vueIntro101() {
     </div>
     <div class="fiche" style="margin-top:34px">
       <div class="bloc"><h2>L'ordre de l'Archive</h2><ol class="puces">${ORDRE101.map(e => `<li><b>${EPREUVES[e].nom}</b> — ${EPREUVES[e].mod.resume(NB).slice(0, e === 3 ? 1 : 2).join(", ")}${e === 3 ? ", une seule tentative" : ""}</li>`).join("")}</ol></div>
+      ${allieIntro()}
       <div class="bloc danger"><h2>Les règles du 101</h2><ul class="puces">
         <li>Les trois épreuves s'enchaînent ; chacune doit être réussie pour passer à la suivante.</li>
         <li>Au problème final, une seule tentative.</li>
         <li>Changer d'onglet ou de fenêtre, cliquer hors de l'épreuve ou recharger la page l'annule aussitôt.</li>
-        <li>Durée maximale : 75 minutes pour les trois.</li>
+        <li>Durée maximale : 75 minutes pour les trois${aSpec("sablier") ? `, plus ${av("sablier", "minutes", 0, 40)} grâce à votre sage` : ""}.</li>
         <li>Pause de ${CONFIG.COOLDOWN_MIN / 60} heures après la tentative, réussie ou non.</li>
       </ul></div>
     </div>
@@ -1177,9 +1319,10 @@ function vueIntro(e, n) {
   app.innerHTML = `${tete}
     <div class="fiche">
       <div class="bloc"><h2>Ce qui vous attend</h2><ul class="puces">${E.mod.resume(n).map(x => `<li>${x}</li>`).join("")}</ul></div>
+      ${allieIntro()}
       <div class="bloc danger"><h2>Avant de commencer</h2><ul class="puces">
         <li>Changer d'onglet ou de fenêtre, cliquer hors de l'épreuve, réduire ou recharger la page l'annule aussitôt.</li>
-        <li>Durée maximale : ${CONFIG.DUREE_MAX_MIN} minutes.</li>
+        <li>Durée maximale : ${CONFIG.DUREE_MAX_MIN} minutes${aSpec("sablier") ? `, plus ${av("sablier", "minutes", 0, 40)} grâce à votre sage` : ""}.</li>
         <li>Pause de ${CONFIG.COOLDOWN_MIN / 60} heures après la tentative, réussie ou non.</li>
       </ul></div>
     </div>
